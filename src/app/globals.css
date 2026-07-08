@@ -66,3 +66,44 @@ button:disabled {
   color: #b91c1c;
   font-weight: 700;
 }
+
+.debug {
+  border-radius: 16px;
+  background: #fff;
+  margin-top: 24px;
+  padding: 28px;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.12);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+table {
+  border-collapse: collapse;
+  min-width: 760px;
+  width: 100%;
+}
+
+th,
+td {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #f8fafc;
+  font-size: 0.85rem;
+}
+
+.mapped {
+  color: #047857;
+  font-weight: 700;
+}
+
+.unmapped {
+  color: #b91c1c;
+  font-weight: 700;
+}

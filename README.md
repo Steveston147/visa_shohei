@@ -26,7 +26,7 @@ The sample data contains Japanese text. To render Japanese text correctly with `
 public/fonts/NotoSansJP-Regular.ttf
 ```
 
-The app does not include or download font files automatically. If this file is missing, PDF generation stops with an instruction to add it.
+The app uses the pdf-lib recommended `@pdf-lib/fontkit` package. It does not include or download font files automatically. If this file is missing, PDF generation stops with an instruction to add it.
 
 ## Run the app
 
@@ -49,7 +49,7 @@ InvitationReason_{programName}_{passportName}.pdf
 npm run inspect:pdf
 ```
 
-The script reads `public/templates/shouhei-riyusho.pdf` and prints AcroForm field names. Use the discovered names to update `src/lib/pdfFieldNames.ts`.
+The script reads `public/templates/shouhei-riyusho.pdf`, prints every AcroForm widget with page index and rectangle coordinates, sorts widgets top-to-bottom and left-to-right, and writes `docs/pdf-field-inspection.md`. Use the coordinate report plus the visible PDF layout to update `src/lib/pdfFieldNames.ts`; do not rely on field order alone.
 
 ## Scope
 
