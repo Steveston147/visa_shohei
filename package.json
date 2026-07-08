@@ -14,7 +14,7 @@
     "pdf-lib": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "@pdf-lib/fontkit": "latest"
+    "fontkit": "latest"
   },
   "devDependencies": {
     "@types/node": "latest",

@@ -1,9 +1,9 @@
 'use client';
 
-import fontkit from '@pdf-lib/fontkit';
+import fontkit from 'fontkit';
 import { useState } from 'react';
 import { PDFDocument, PDFForm, PDFTextField, PDFCheckBox, PDFFont } from 'pdf-lib';
-import { invitationReasonPdfFields, type InvitationReasonPdfFieldKey } from '../lib/pdfFieldNames';
+import { invitationReasonPdfFields, pdfFieldNames, type InvitationReasonPdfFieldKey } from '../lib/pdfFieldNames';
 
 const templatePath = '/templates/shouhei-riyusho.pdf';
 const fontPath = '/fonts/NotoSansJP-Regular.ttf';
@@ -30,6 +30,15 @@ const sampleData = {
   invitationBackground: '協定校から推薦された学生を受け入れるため',
   relationshipToApplicant: '受入機関',
 };
+
+
+const mappedSemanticFields = Object.entries(invitationReasonPdfFields)
+  .filter(([, fieldName]) => fieldName.length > 0)
+  .map(([key]) => key as InvitationReasonPdfFieldKey);
+
+const missingSemanticFields = Object.entries(invitationReasonPdfFields)
+  .filter(([, fieldName]) => fieldName.length === 0)
+  .map(([key]) => key as InvitationReasonPdfFieldKey);
 
 const requiredFieldLabels: Record<InvitationReasonPdfFieldKey, string> = {
   documentDateEra: '作成年号',
@@ -191,6 +200,21 @@ export default function Home() {
         <h2>処理結果</h2>
         <p>{message}</p>
         {error ? <p className="error">{error}</p> : null}
+      </section>
+
+      <section className="result">
+        <h2>PDFフィールドデバッグ</h2>
+        <p>検出済みPDFフィールド数: {pdfFieldNames.length}</p>
+        <h3>マッピング済み必須フィールド</h3>
+        <ul>
+          {mappedSemanticFields.map((key) => <li key={key}>{requiredFieldLabels[key]}: {invitationReasonPdfFields[key]}</li>)}
+        </ul>
+        <h3>未マッピング必須フィールド</h3>
+        {missingSemanticFields.length > 0 ? (
+          <ul>
+            {missingSemanticFields.map((key) => <li key={key}>{requiredFieldLabels[key]}</li>)}
+          </ul>
+        ) : <p>未マッピングの必須フィールドはありません。</p>}
       </section>
     </main>
   );
