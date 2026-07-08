@@ -1,11 +1,12 @@
-// This file is the single source of truth for the PDF field names.
-// Replace the empty string values with the actual AcroForm field names discovered
-// by `npm run inspect:pdf`. Do not guess field names elsewhere in the app.
+// This file is the single source of truth for semantic PDF field mappings.
+// Fill values only after inspecting AcroForm widget rectangles with `npm run inspect:pdf`.
+// Do not guess field names or rely only on AcroForm order.
 
 export const pdfFieldNames = [] as const;
 
+export const pdfFieldNameMap = {} as const;
+
 export const invitationReasonPdfFields = {
-  documentDateEra: '',
   documentDateYear: '',
   documentDateMonth: '',
   documentDateDay: '',
@@ -25,7 +26,7 @@ export const invitationReasonPdfFields = {
   applicantPassportName: '',
   applicantGenderMale: '',
   applicantGenderFemale: '',
-  applicantGenderOtherText: '',
+  additionalApplicantsCount: '',
   applicantDateOfBirthYear: '',
   applicantDateOfBirthMonth: '',
   applicantDateOfBirthDay: '',
@@ -35,4 +36,5 @@ export const invitationReasonPdfFields = {
   relationshipToApplicant: '',
 } as const;
 
+export type PdfFieldName = (typeof pdfFieldNames)[number];
 export type InvitationReasonPdfFieldKey = keyof typeof invitationReasonPdfFields;
