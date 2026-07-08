@@ -5,24 +5,51 @@
 
 body {
   margin: 0;
-  background: #f7f7f8;
+  background: #f4f6f8;
   color: #1f2937;
 }
 
 main {
   margin: 0 auto;
-  max-width: 760px;
+  max-width: 820px;
   padding: 48px 24px;
+}
+
+.hero,
+.result {
+  border-radius: 16px;
+  background: #fff;
+  padding: 28px;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.12);
+}
+
+.hero {
+  border-top: 6px solid #1d4ed8;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #1d4ed8;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  line-height: 1.25;
 }
 
 button {
   border: 0;
   border-radius: 8px;
-  background: #2563eb;
+  background: #1d4ed8;
   color: white;
   cursor: pointer;
   font-size: 1rem;
   font-weight: 700;
+  margin-top: 16px;
   padding: 12px 18px;
 }
 
@@ -33,16 +60,9 @@ button:disabled {
 
 .result {
   margin-top: 24px;
-  border-radius: 12px;
-  background: white;
-  padding: 20px;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
 }
 
 .error {
   color: #b91c1c;
-}
-
-li {
-  overflow-wrap: anywhere;
+  font-weight: 700;
 }
