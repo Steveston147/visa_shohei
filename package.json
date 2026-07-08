@@ -13,7 +13,8 @@
     "next": "latest",
     "pdf-lib": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "@pdf-lib/fontkit": "latest"
   },
   "devDependencies": {
     "@types/node": "latest",

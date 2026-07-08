@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '招へい理由書 PDFフィールド確認',
-  description: 'PDFテンプレートのAcroFormフィールド名を確認する小さなアプリです。',
+  title: '招へい理由書PDF作成',
+  description: '固定サンプルデータから招へい理由書PDFを作成します。',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

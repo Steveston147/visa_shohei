@@ -1,56 +1,56 @@
-# 招へい理由書 PDFフィールド確認
+# 招へい理由書PDF作成
 
-Minimal Next.js + TypeScript app for inspecting AcroForm field names in a Japanese visa invitation reason PDF template (`招へい理由書`).
+Next.js + TypeScript app that fills one Japanese visa invitation reason PDF (`招へい理由書`) with fixed sample data and downloads a flattened PDF.
 
-This step only inspects PDF field names. It does **not** generate completed PDFs, import Excel files, or draw text by coordinates.
+## Template and field names
 
-## PDF template location
-
-Place the PDF template here:
+Place the fillable PDF template at:
 
 ```text
 public/templates/shouhei-riyusho.pdf
 ```
 
-The app and the Node.js inspection script both read this exact path.
+PDF field names must be maintained in:
+
+```text
+src/lib/pdfFieldNames.ts
+```
+
+This file is the single source of truth for PDF field names. Do not hard-code guessed field names in other files. If a required field name is blank or does not exist in the template, the app shows a clear error message.
+
+## Japanese font
+
+The sample data contains Japanese text. To render Japanese text correctly with `pdf-lib`, place a Japanese-capable TrueType font at:
+
+```text
+public/fonts/NotoSansJP-Regular.ttf
+```
+
+The app does not include or download font files automatically. If this file is missing, PDF generation stops with an instruction to add it.
 
 ## Run the app
-
-Install dependencies and start the development server:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the URL printed by Next.js, then click:
+Open the URL printed by Next.js and click `完成PDFをダウンロード`.
+
+The downloaded file name is:
 
 ```text
-PDFフィールド名を確認
+InvitationReason_{programName}_{passportName}.pdf
 ```
 
-The page will list all AcroForm field names found in `public/templates/shouhei-riyusho.pdf`. The same field names are also printed in the browser console.
-
-## Inspect PDF field names from Node.js
-
-Run:
+## Inspect PDF field names
 
 ```bash
 npm run inspect:pdf
 ```
 
-The script loads `public/templates/shouhei-riyusho.pdf` and prints every AcroForm field name.
+The script reads `public/templates/shouhei-riyusho.pdf` and prints AcroForm field names. Use the discovered names to update `src/lib/pdfFieldNames.ts`.
 
-If fields are found, the script creates or updates:
+## Scope
 
-```text
-src/lib/pdfFieldNames.ts
-```
-
-That file exports the discovered field names from the actual PDF template so later implementation work can reuse them without guessing.
-
-## If no AcroForm fields are found
-
-If the app or script reports that no AcroForm fields were found, stop this step and confirm the PDF template. Do not guess field names and do not implement coordinate-based drawing in this step.
-
-A PDF with no AcroForm fields may be a flat PDF. In that case, field-based filling with `pdf-lib` is not possible until a fillable PDF template is provided.
+This app intentionally supports exactly one visa applicant. It does not implement multiple applicants, representative applicant mode, applicant lists, ZIP export, Excel import, login, database, or cloud storage.
