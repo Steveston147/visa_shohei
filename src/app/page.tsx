@@ -10,7 +10,7 @@ const fontPath = '/fonts/NotoSansJP-Regular.ttf';
 const sampleData = {
   programName: 'Ritsumeikan Short-term Study Program',
   documentDate: '2026-07-08',
-  diplomaticMission: '在上海日本国総領事館',
+  diplomaticMission: '上海',
   postalCode: '603-8577',
   address: '京都市北区等持院北町56-1',
   inviterName: '田中 猛',
