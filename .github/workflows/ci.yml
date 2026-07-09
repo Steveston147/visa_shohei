@@ -10,6 +10,8 @@ jobs:
   build:
     name: Typecheck and build
     runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
 
     steps:
       - name: Checkout repository
@@ -20,8 +22,11 @@ jobs:
         with:
           node-version: 24
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies including dev dependencies
+        run: npm install --include=dev
+
+      - name: Verify TypeScript package is available
+        run: node -e "console.log(require.resolve('typescript'))"
 
       - name: Run typecheck
         run: npm run typecheck
