@@ -43,6 +43,12 @@ The downloaded file name is:
 InvitationReason_{programName}_{passportName}.pdf
 ```
 
+## Excel input support
+
+The Step 3A UI can download `shouhei_riyusho_template.xlsx`, upload an edited Excel file, parse the `Input` sheet, preview the data, and show validation errors and warnings. Uploaded Excel data is intentionally not connected to PDF generation yet.
+
+Excel support uses SheetJS via the real runtime dependency `xlsx` declared in `package.json`. `npm install` must successfully install `xlsx` for `npm run build` and browser runtime behavior to work. The local `src/types/xlsx.d.ts` file is only a small fallback declaration for typechecking in restricted environments where package types are unavailable; it does not replace the actual `xlsx` package.
+
 ## Inspect PDF field names
 
 ```bash
@@ -53,4 +59,4 @@ The script reads `public/templates/shouhei-riyusho.pdf`, prints every AcroForm w
 
 ## Scope
 
-This app intentionally supports exactly one visa applicant. It does not implement multiple applicants, representative applicant mode, applicant lists, ZIP export, Excel import, login, database, or cloud storage.
+This app intentionally supports exactly one visa applicant. It does not implement multiple applicants, representative applicant mode, applicant lists, ZIP export, Excel-to-PDF generation, login, database, or cloud storage.

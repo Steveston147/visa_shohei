@@ -98,7 +98,8 @@ const excelTemplateRows: TemplateRow[] = [
 
 const excelFieldSet = new Set(excelTemplateRows.map((row) => `${row.section}|${row.field}`));
 const dateFieldSet = new Set(['Program|documentDate', 'Applicant|dateOfBirth']);
-const requiredExcelFields = excelTemplateRows.filter((row) => !['Inviter|extension', 'Organisation|phone', 'Organisation|extension'].includes(`${row.section}|${row.field}`));
+const optionalExcelFields = new Set(['Inviter|extension', 'Organisation|extension']);
+const requiredExcelFields = excelTemplateRows.filter((row) => !optionalExcelFields.has(`${row.section}|${row.field}`));
 
 function cloneEmptyParsedExcelData(): ParsedExcelData {
   return JSON.parse(JSON.stringify(emptyParsedExcelData)) as ParsedExcelData;
