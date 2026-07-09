@@ -110,7 +110,7 @@ function formatDateParts(year: number, month: number, day: number) {
 }
 
 function normalizeExcelDate(value: unknown): string | null {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return formatDateParts(value.getFullYear(), value.getMonth() + 1, value.getDate());
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return formatDateParts(value.getUTCFullYear(), value.getUTCMonth() + 1, value.getUTCDate());
   if (typeof value === 'number' && Number.isFinite(value)) {
     const parsed = XLSX.SSF.parse_date_code(value);
     if (!parsed) return null;
