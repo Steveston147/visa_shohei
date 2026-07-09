@@ -139,14 +139,29 @@ function wrapText(value: string, font: PDFFont, fontSize: number, maxWidth: numb
   return lines;
 }
 
-function drawSingleLine(page: PDFPage, value: string, font: PDFFont, placement: TextPlacement) {
-  page.drawText(value, {
-    x: placement.x + placement.xPadding,
-    y: placement.y + placement.yPadding,
-    font,
-    size: placement.fontSize,
-    color: rgb(0, 0, 0),
+function drawTextCharacters(page: PDFPage, value: string, font: PDFFont, x: number, y: number, fontSize: number) {
+  let cursorX = x;
+  Array.from(value).forEach((char) => {
+    page.drawText(char, {
+      x: cursorX,
+      y,
+      font,
+      size: fontSize,
+      color: rgb(0, 0, 0),
+    });
+    cursorX += font.widthOfTextAtSize(char, fontSize);
   });
+}
+
+function drawSingleLine(page: PDFPage, value: string, font: PDFFont, placement: TextPlacement) {
+  drawTextCharacters(
+    page,
+    value,
+    font,
+    placement.x + placement.xPadding,
+    placement.y + placement.yPadding,
+    placement.fontSize,
+  );
 }
 
 function drawMultiline(page: PDFPage, value: string, font: PDFFont, placement: TextPlacement) {
@@ -156,13 +171,7 @@ function drawMultiline(page: PDFPage, value: string, font: PDFFont, placement: T
   const lines = wrapText(value, font, placement.fontSize, maxWidth).slice(0, maxLines);
   const startY = placement.y + placement.height - placement.yPadding - placement.fontSize;
   lines.forEach((line, index) => {
-    page.drawText(line, {
-      x: placement.x + placement.xPadding,
-      y: startY - index * lineHeight,
-      font,
-      size: placement.fontSize,
-      color: rgb(0, 0, 0),
-    });
+    drawTextCharacters(page, line, font, placement.x + placement.xPadding, startY - index * lineHeight, placement.fontSize);
   });
 }
 
