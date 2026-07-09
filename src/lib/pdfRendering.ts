@@ -1,9 +1,14 @@
-import { PDFDocument, PDFPage, PDFFont, rgb } from 'pdf-lib';
+import { PDFDocument, PDFForm, PDFPage, PDFFont, rgb } from 'pdf-lib';
 import type { InvitationReasonPdfFieldKey } from './pdfFieldNames';
 
 type PdfDocumentPrototype = PDFDocument & {
   __invitationReasonSaveCompatPatched?: true;
   save: (...args: unknown[]) => Promise<Uint8Array>;
+};
+
+type PdfFormPrototype = PDFForm & {
+  __invitationReasonFlattenCompatPatched?: true;
+  flatten: (...args: unknown[]) => void;
 };
 
 function objectOption(value: unknown) {
@@ -25,7 +30,22 @@ function installPdfSaveCompatibilityDefaults() {
   prototype.__invitationReasonSaveCompatPatched = true;
 }
 
+function installPdfFormFlattenCompatibilityDefaults() {
+  const prototype = PDFForm.prototype as unknown as PdfFormPrototype;
+  if (prototype.__invitationReasonFlattenCompatPatched) return;
+
+  // The source template contains AcroForm widgets. pdf-lib flattening those widgets produced
+  // malformed XObjects in Acrobat / HP Sure Click. Visible text is now drawn directly onto
+  // the page, and checkboxes remain as normal AcroForm widgets, so skip flattening here.
+  prototype.flatten = function skipFlattenForInvitationReasonPdf() {
+    return undefined;
+  };
+
+  prototype.__invitationReasonFlattenCompatPatched = true;
+}
+
 installPdfSaveCompatibilityDefaults();
+installPdfFormFlattenCompatibilityDefaults();
 
 type TextFieldKey = Exclude<InvitationReasonPdfFieldKey, 'applicantGenderMale' | 'applicantGenderFemale'>;
 
