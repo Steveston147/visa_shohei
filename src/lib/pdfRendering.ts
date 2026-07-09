@@ -1,4 +1,4 @@
-import { PDFDocument, PDFForm, PDFPage, PDFFont, rgb } from 'pdf-lib';
+import { PDFDocument, PDFForm, PDFName, PDFPage, PDFFont, rgb } from 'pdf-lib';
 import type { InvitationReasonPdfFieldKey } from './pdfFieldNames';
 
 type PdfDocumentPrototype = PDFDocument & {
@@ -9,10 +9,20 @@ type PdfDocumentPrototype = PDFDocument & {
 type PdfFormPrototype = PDFForm & {
   __invitationReasonFlattenCompatPatched?: true;
   flatten: (...args: unknown[]) => void;
+  doc?: PDFDocument;
 };
 
 function objectOption(value: unknown) {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function removeFormWidgets(pdfDoc: PDFDocument) {
+  const annotsName = PDFName.of('Annots');
+  const acroFormName = PDFName.of('AcroForm');
+  pdfDoc.getPages().forEach((page) => {
+    page.node.delete(annotsName);
+  });
+  pdfDoc.catalog.delete(acroFormName);
 }
 
 function installPdfSaveCompatibilityDefaults() {
@@ -35,9 +45,12 @@ function installPdfFormFlattenCompatibilityDefaults() {
   if (prototype.__invitationReasonFlattenCompatPatched) return;
 
   // The source template contains AcroForm widgets. pdf-lib flattening those widgets produced
-  // malformed XObjects in Acrobat / HP Sure Click. Visible text is now drawn directly onto
-  // the page, and checkboxes remain as normal AcroForm widgets, so skip flattening here.
-  prototype.flatten = function skipFlattenForInvitationReasonPdf() {
+  // malformed XObjects in Acrobat / HP Sure Click, while leaving widgets unflattened shows blue
+  // interactive fields. For this MVP, remove all form widgets and draw every visible value,
+  // including checkbox marks, directly onto the page.
+  prototype.flatten = function removeWidgetsInsteadOfFlattening(this: PDFForm) {
+    const pdfDoc = (this as unknown as PdfFormPrototype).doc;
+    if (pdfDoc) removeFormWidgets(pdfDoc);
     return undefined;
   };
 
@@ -48,6 +61,7 @@ installPdfSaveCompatibilityDefaults();
 installPdfFormFlattenCompatibilityDefaults();
 
 type TextFieldKey = Exclude<InvitationReasonPdfFieldKey, 'applicantGenderMale' | 'applicantGenderFemale'>;
+type CheckboxFieldKey = Extract<InvitationReasonPdfFieldKey, 'applicantGenderMale' | 'applicantGenderFemale'>;
 
 type TextPlacement = {
   pageIndex: number;
@@ -62,11 +76,18 @@ type TextPlacement = {
   lineHeight?: number;
 };
 
+type CheckboxPlacement = {
+  pageIndex: number;
+  x: number;
+  y: number;
+  size: number;
+};
+
 const normalFontSize = 9.5;
 const narrativeFontSize = 10.5;
 
 // Coordinates are the confirmed AcroForm widget rectangles from docs/pdf-field-inspection.md.
-// Text is drawn directly onto the page after flattening so pdf-lib AcroForm appearances do not control rendering.
+// Text is drawn directly onto the page so pdf-lib AcroForm appearances do not control rendering.
 export const invitationReasonTextPlacements: Record<TextFieldKey, TextPlacement> = {
   documentDateYear: { pageIndex: 0, x: 409.29, y: 740.57, width: 29.06, height: 16.8, fontSize: normalFontSize, xPadding: 2, yPadding: 4.2 },
   documentDateMonth: { pageIndex: 0, x: 451.18, y: 740.57, width: 29.06, height: 16.8, fontSize: normalFontSize, xPadding: 2, yPadding: 4.2 },
@@ -93,6 +114,11 @@ export const invitationReasonTextPlacements: Record<TextFieldKey, TextPlacement>
   invitationPurpose: { pageIndex: 0, x: 108, y: 190.68, width: 395.28, height: 38.4, fontSize: narrativeFontSize, xPadding: 4, yPadding: 4, multiline: true, lineHeight: 13 },
   invitationBackground: { pageIndex: 0, x: 108, y: 136.44, width: 395.28, height: 37.09, fontSize: narrativeFontSize, xPadding: 4, yPadding: 4, multiline: true, lineHeight: 13 },
   relationshipToApplicant: { pageIndex: 0, x: 108, y: 82.08, width: 395.28, height: 36.44, fontSize: narrativeFontSize, xPadding: 4, yPadding: 4, multiline: true, lineHeight: 13 },
+};
+
+const invitationReasonCheckboxPlacements: Record<CheckboxFieldKey, CheckboxPlacement> = {
+  applicantGenderMale: { pageIndex: 0, x: 403.44, y: 320.52, size: 12 },
+  applicantGenderFemale: { pageIndex: 0, x: 427.56, y: 320.52, size: 12 },
 };
 
 function wrapText(value: string, font: PDFFont, fontSize: number, maxWidth: number) {
@@ -140,6 +166,32 @@ function drawMultiline(page: PDFPage, value: string, font: PDFFont, placement: T
   });
 }
 
+function drawCheckboxMark(page: PDFPage, placement: CheckboxPlacement) {
+  const { x, y, size } = placement;
+  page.drawLine({
+    start: { x: x + size * 0.2, y: y + size * 0.52 },
+    end: { x: x + size * 0.42, y: y + size * 0.28 },
+    thickness: 1.3,
+    color: rgb(0, 0, 0),
+  });
+  page.drawLine({
+    start: { x: x + size * 0.42, y: y + size * 0.28 },
+    end: { x: x + size * 0.82, y: y + size * 0.82 },
+    thickness: 1.3,
+    color: rgb(0, 0, 0),
+  });
+}
+
+function drawGenderCheckboxes(pages: PDFPage[], values: Record<InvitationReasonPdfFieldKey, string>) {
+  (Object.keys(invitationReasonCheckboxPlacements) as CheckboxFieldKey[]).forEach((key) => {
+    if (values[key] !== 'checked') return;
+    const placement = invitationReasonCheckboxPlacements[key];
+    const page = pages[placement.pageIndex];
+    if (!page) throw new Error(`PDF page not found for checkbox: ${key}`);
+    drawCheckboxMark(page, placement);
+  });
+}
+
 export function drawInvitationReasonText(pages: PDFPage[], values: Record<InvitationReasonPdfFieldKey, string>, font: PDFFont) {
   (Object.keys(invitationReasonTextPlacements) as TextFieldKey[]).forEach((key) => {
     const value = values[key];
@@ -150,4 +202,5 @@ export function drawInvitationReasonText(pages: PDFPage[], values: Record<Invita
     if (placement.multiline) drawMultiline(page, value, font, placement);
     else drawSingleLine(page, value, font, placement);
   });
+  drawGenderCheckboxes(pages, values);
 }
