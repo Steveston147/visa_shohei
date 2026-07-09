@@ -1,5 +1,37 @@
-import { PDFPage, PDFFont, rgb } from 'pdf-lib';
+import { PDFDocument, PDFPage, PDFFont, rgb } from 'pdf-lib';
 import type { InvitationReasonPdfFieldKey } from './pdfFieldNames';
+
+type PdfDocumentPrototype = PDFDocument & {
+  __invitationReasonCompatPatched?: true;
+  save: (...args: unknown[]) => Promise<Uint8Array>;
+  embedFont: (...args: unknown[]) => Promise<PDFFont>;
+};
+
+function objectOption(value: unknown) {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function installPdfCompatibilityDefaults() {
+  const prototype = PDFDocument.prototype as unknown as PdfDocumentPrototype;
+  if (prototype.__invitationReasonCompatPatched) return;
+
+  const originalSave = prototype.save;
+  const originalEmbedFont = prototype.embedFont;
+
+  // Adobe Acrobat / HP Sure Click can be strict with object streams and subset CJK fonts.
+  // Prefer larger but more compatible business PDFs for downloaded visa documents.
+  prototype.save = function saveWithCompatibleDefaults(this: PDFDocument, options?: unknown) {
+    return originalSave.call(this, { useObjectStreams: false, ...objectOption(options) });
+  };
+
+  prototype.embedFont = function embedFontWithCompatibleDefaults(this: PDFDocument, font: unknown, options?: unknown) {
+    return originalEmbedFont.call(this, font, { ...objectOption(options), subset: false });
+  };
+
+  prototype.__invitationReasonCompatPatched = true;
+}
+
+installPdfCompatibilityDefaults();
 
 type TextFieldKey = Exclude<InvitationReasonPdfFieldKey, 'applicantGenderMale' | 'applicantGenderFemale'>;
 
