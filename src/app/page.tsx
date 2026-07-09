@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, type ChangeEvent } from 'react';
-import { PDFDocument, PDFForm, PDFTextField, PDFCheckBox, PDFFont } from 'pdf-lib';
+import { PDFDocument, PDFForm, PDFCheckBox } from 'pdf-lib';
 import { invitationReasonPdfFields, type InvitationReasonPdfFieldKey } from '../lib/pdfFieldNames';
+import { drawInvitationReasonText } from '../lib/pdfRendering';
 
 const templatePath = '/templates/shouhei-riyusho.pdf';
 const fontPath = '/fonts/NotoSansJP-Regular.ttf';
@@ -244,14 +245,6 @@ function getMappingStatus(key: InvitationReasonPdfFieldKey) {
   return invitationReasonPdfFields[key] ? 'mapped' : 'unmapped';
 }
 
-function setText(form: PDFForm, key: InvitationReasonPdfFieldKey, value: string, font: PDFFont) {
-  const name = getFieldName(key);
-  const field = form.getField(name);
-  if (!(field instanceof PDFTextField)) throw new Error(`PDFフィールド「${name}」はテキストフィールドではありません。`);
-  field.setText(value);
-  field.updateAppearances(font);
-}
-
 function setCheckbox(form: PDFForm, key: InvitationReasonPdfFieldKey, checked: boolean) {
   const name = getFieldName(key);
   const field = form.getField(name);
@@ -450,37 +443,11 @@ export default function Home() {
       pdfDoc.registerFontkit(fontkit);
       const japaneseFont = await pdfDoc.embedFont(await fontResponse.arrayBuffer(), { subset: true });
       const form = pdfDoc.getForm();
-      const reiwaYear = toReiwaYear(documentDate);
-
-      setText(form, 'documentDateYear', String(reiwaYear), japaneseFont);
-      setText(form, 'documentDateMonth', String(documentDate.getUTCMonth() + 1), japaneseFont);
-      setText(form, 'documentDateDay', String(documentDate.getUTCDate()), japaneseFont);
-      setText(form, 'diplomaticMission', sampleData.diplomaticMission, japaneseFont);
-      setText(form, 'inviterPostalCodeFirst3', postalFirst3, japaneseFont);
-      setText(form, 'inviterPostalCodeLast4', postalLast4, japaneseFont);
-      setText(form, 'inviterAddress', sampleData.address, japaneseFont);
-      setText(form, 'inviterName', sampleData.inviterName, japaneseFont);
-      setText(form, 'inviterPhone', sampleData.inviterPhone, japaneseFont);
-      setText(form, 'inviterExtension', sampleData.inviterExtension, japaneseFont);
-      setText(form, 'organisationName', sampleData.organisationName, japaneseFont);
-      setText(form, 'contactPersonName', sampleData.contactPersonName, japaneseFont);
-      setText(form, 'contactPhone', sampleData.contactPhone, japaneseFont);
-      setText(form, 'contactExtension', sampleData.contactExtension, japaneseFont);
-      setText(form, 'applicantNationality', sampleData.nationality, japaneseFont);
-      setText(form, 'applicantOccupation', sampleData.occupation, japaneseFont);
-      setText(form, 'applicantPassportName', sampleData.passportName, japaneseFont);
       setCheckbox(form, 'applicantGenderMale', sampleData.gender === 'male');
       setCheckbox(form, 'applicantGenderFemale', sampleData.gender === 'female');
-      setText(form, 'additionalApplicantsCount', '', japaneseFont);
-      setText(form, 'applicantDateOfBirthYear', String(birthDate.getUTCFullYear()), japaneseFont);
-      setText(form, 'applicantDateOfBirthMonth', String(birthDate.getUTCMonth() + 1), japaneseFont);
-      setText(form, 'applicantDateOfBirthDay', String(birthDate.getUTCDate()), japaneseFont);
-      setText(form, 'applicantAge', String(calculateAge(documentDate, birthDate)), japaneseFont);
-      setText(form, 'invitationPurpose', sampleData.invitationPurpose, japaneseFont);
-      setText(form, 'invitationBackground', sampleData.invitationBackground, japaneseFont);
-      setText(form, 'relationshipToApplicant', sampleData.relationshipToApplicant, japaneseFont);
-
       form.flatten();
+      drawInvitationReasonText(pdfDoc.getPages(), sampleValues, japaneseFont);
+
       const bytes = await pdfDoc.save();
       const blob = new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
