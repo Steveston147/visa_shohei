@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, type ChangeEvent } from 'react';
-import * as XLSX from 'xlsx';
 import { PDFDocument, PDFForm, PDFTextField, PDFCheckBox, PDFFont } from 'pdf-lib';
 import { invitationReasonPdfFields, type InvitationReasonPdfFieldKey } from '../lib/pdfFieldNames';
 
@@ -65,6 +64,8 @@ type TemplateRow = {
   note: string;
 };
 
+type XlsxModule = typeof import('xlsx/xlsx.mjs');
+
 const emptyParsedExcelData: ParsedExcelData = {
   program: { programName: '', documentDate: '', diplomaticMission: '' },
   inviter: { postalCode: '', address: '', name: '', phone: '', extension: '' },
@@ -109,10 +110,10 @@ function formatDateParts(year: number, month: number, day: number) {
   return `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
 }
 
-function normalizeExcelDate(value: unknown): string | null {
+function normalizeExcelDate(value: unknown, xlsx?: XlsxModule): string | null {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return formatDateParts(value.getUTCFullYear(), value.getUTCMonth() + 1, value.getUTCDate());
   if (typeof value === 'number' && Number.isFinite(value)) {
-    const parsed = XLSX.SSF.parse_date_code(value);
+    const parsed = xlsx?.SSF.parse_date_code(value);
     if (!parsed) return null;
     return formatDateParts(parsed.y, parsed.m, parsed.d);
   }
@@ -123,6 +124,10 @@ function normalizeExcelDate(value: unknown): string | null {
     return formatDateParts(year, month, day);
   }
   return null;
+}
+
+async function loadXlsx() {
+  return import('xlsx/xlsx.mjs');
 }
 
 function stringifyExcelValue(value: unknown) {
@@ -365,7 +370,8 @@ export default function Home() {
 
   const [excelResult, setExcelResult] = useState<ExcelParseResult | null>(null);
 
-  function downloadExcelTemplate() {
+  async function downloadExcelTemplate() {
+    const XLSX = await loadXlsx();
     const worksheet = XLSX.utils.json_to_sheet(excelTemplateRows, { header: ['section', 'field', 'value', 'note'] });
     worksheet['!cols'] = [{ wch: 16 }, { wch: 24 }, { wch: 48 }, { wch: 52 }];
     worksheet['!freeze'] = { xSplit: 0, ySplit: 1 };
@@ -391,6 +397,7 @@ export default function Home() {
     const warnings: string[] = [];
     const data = cloneEmptyParsedExcelData();
     try {
+      const XLSX = await loadXlsx();
       const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
       const worksheet = workbook.Sheets.Input;
       if (!worksheet) errors.push('Input シートが見つかりません。');
@@ -407,7 +414,7 @@ export default function Home() {
             warnings.push(`未定義の項目です（${index + 2}行目）: ${section || 'section空欄'} / ${field || 'field空欄'}`);
             return;
           }
-          const value = dateFieldSet.has(key) ? normalizeExcelDate(rawValue) : stringifyExcelValue(rawValue);
+          const value = dateFieldSet.has(key) ? normalizeExcelDate(rawValue, XLSX) : stringifyExcelValue(rawValue);
           if (dateFieldSet.has(key) && value === null) {
             errors.push(`${section} / ${field} は YYYY-MM-DD に変換できません。入力値を確認してください。`);
             return;

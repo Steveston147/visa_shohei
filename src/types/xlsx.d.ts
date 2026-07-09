@@ -16,3 +16,8 @@ declare module 'xlsx' {
   export function read(data: ArrayBuffer, options?: { type?: string; cellDates?: boolean }): WorkBook;
   export function writeFile(workbook: WorkBook, filename: string): void;
 }
+
+
+declare module 'xlsx/xlsx.mjs' {
+  export * from 'xlsx';
+}
