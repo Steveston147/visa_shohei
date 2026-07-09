@@ -2,36 +2,30 @@ import { PDFDocument, PDFPage, PDFFont, rgb } from 'pdf-lib';
 import type { InvitationReasonPdfFieldKey } from './pdfFieldNames';
 
 type PdfDocumentPrototype = PDFDocument & {
-  __invitationReasonCompatPatched?: true;
+  __invitationReasonSaveCompatPatched?: true;
   save: (...args: unknown[]) => Promise<Uint8Array>;
-  embedFont: (...args: unknown[]) => Promise<PDFFont>;
 };
 
 function objectOption(value: unknown) {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
 }
 
-function installPdfCompatibilityDefaults() {
+function installPdfSaveCompatibilityDefaults() {
   const prototype = PDFDocument.prototype as unknown as PdfDocumentPrototype;
-  if (prototype.__invitationReasonCompatPatched) return;
+  if (prototype.__invitationReasonSaveCompatPatched) return;
 
   const originalSave = prototype.save;
-  const originalEmbedFont = prototype.embedFont;
 
-  // Adobe Acrobat / HP Sure Click can be strict with object streams and subset CJK fonts.
-  // Prefer larger but more compatible business PDFs for downloaded visa documents.
+  // Adobe Acrobat / HP Sure Click can be strict with compressed object streams.
+  // Keep saved visa PDFs conservative while leaving font embedding/subsetting to pdf-lib.
   prototype.save = function saveWithCompatibleDefaults(this: PDFDocument, options?: unknown) {
     return originalSave.call(this, { useObjectStreams: false, ...objectOption(options) });
   };
 
-  prototype.embedFont = function embedFontWithCompatibleDefaults(this: PDFDocument, font: unknown, options?: unknown) {
-    return originalEmbedFont.call(this, font, { ...objectOption(options), subset: false });
-  };
-
-  prototype.__invitationReasonCompatPatched = true;
+  prototype.__invitationReasonSaveCompatPatched = true;
 }
 
-installPdfCompatibilityDefaults();
+installPdfSaveCompatibilityDefaults();
 
 type TextFieldKey = Exclude<InvitationReasonPdfFieldKey, 'applicantGenderMale' | 'applicantGenderFemale'>;
 
@@ -105,7 +99,6 @@ function drawSingleLine(page: PDFPage, value: string, font: PDFFont, placement: 
     y: placement.y + placement.yPadding,
     font,
     size: placement.fontSize,
-    maxWidth: placement.width - placement.xPadding * 2,
     color: rgb(0, 0, 0),
   });
 }
@@ -122,7 +115,6 @@ function drawMultiline(page: PDFPage, value: string, font: PDFFont, placement: T
       y: startY - index * lineHeight,
       font,
       size: placement.fontSize,
-      maxWidth,
       color: rgb(0, 0, 0),
     });
   });
