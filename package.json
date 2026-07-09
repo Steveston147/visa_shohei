@@ -15,7 +15,8 @@
     "pdf-lib": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "@pdf-lib/fontkit": "latest"
+    "@pdf-lib/fontkit": "latest",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "latest",
