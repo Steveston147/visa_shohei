@@ -88,9 +88,10 @@ function fieldType(field: PDFField) {
 
 function toConstantName(fieldName: string, index: number, usedNames: Set<string>) {
   const asciiName = fieldName.normalize('NFKD').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase();
-  const baseName = asciiName.length > 0 && /^[A-Z_$]/.test(asciiName) ? asciiName : `FIELD_${asciiName}`;
+  const fieldNumber = index + 1;
+  const baseName = asciiName.length === 0 || /^[0-9]/.test(asciiName) ? `FIELD_${fieldNumber}` : asciiName;
   let constantName = baseName;
-  let suffix = index + 1;
+  let suffix = 2;
   while (usedNames.has(constantName)) {
     constantName = `${baseName}_${suffix}`;
     suffix += 1;
