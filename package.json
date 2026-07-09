@@ -16,13 +16,13 @@
     "react": "latest",
     "react-dom": "latest",
     "@pdf-lib/fontkit": "latest",
-    "xlsx": "^0.18.5",
-    "typescript": "latest"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "tsx": "latest"
+    "tsx": "latest",
+    "typescript": "5.9.3"
   }
 }
