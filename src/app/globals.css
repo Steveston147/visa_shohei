@@ -231,3 +231,64 @@ th {
   background: white;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
 }
+
+.statsGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin: 16px 0;
+}
+
+.statsGrid div {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 14px;
+}
+
+.statsGrid span {
+  color: #475569;
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.statsGrid strong {
+  display: block;
+  font-size: 1.4rem;
+  margin-top: 6px;
+}
+
+.statsGrid .ready {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.statsGrid .notReady {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.rowError td {
+  background: #fef2f2;
+}
+
+.rowSelected td {
+  background: #eff6ff;
+  box-shadow: inset 0 1px 0 #bfdbfe, inset 0 -1px 0 #bfdbfe;
+}
+
+.selectedApplicant {
+  border-left: 4px solid #1d4ed8;
+  background: #eff6ff;
+  font-weight: 700;
+  margin: 16px 0;
+  padding: 10px 12px;
+}
+
+.selectApplicantButton {
+  font-size: 0.85rem;
+  margin: 0;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
