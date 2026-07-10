@@ -231,3 +231,44 @@ th {
   background: white;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
 }
+
+.statsGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin: 16px 0;
+}
+
+.statsGrid div {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 14px;
+}
+
+.statsGrid span {
+  color: #475569;
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.statsGrid strong {
+  display: block;
+  font-size: 1.4rem;
+  margin-top: 6px;
+}
+
+.statsGrid .ready {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.statsGrid .notReady {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.rowError td {
+  background: #fef2f2;
+}

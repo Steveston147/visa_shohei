@@ -68,10 +68,13 @@ function toReiwaYear(date: Date) {
   if (date.getTime() < Date.UTC(2019, 4, 1)) throw new Error('令和より前の日付は対応していません。');
   return date.getUTCFullYear() - 2018;
 }
-function calculateAge(onDate: Date, birthDate: Date) {
+export function calculateAgeOnDate(onDate: Date, birthDate: Date) {
   let age = onDate.getUTCFullYear() - birthDate.getUTCFullYear();
   if (onDate.getTime() < Date.UTC(onDate.getUTCFullYear(), birthDate.getUTCMonth(), birthDate.getUTCDate())) age -= 1;
   return age;
+}
+export function calculateAgeFromDates(documentDate: string, dateOfBirth: string) {
+  return calculateAgeOnDate(parseDate(documentDate), parseDate(dateOfBirth));
 }
 export function deriveInvitationReasonData(data: InvitationReasonData): DerivedInvitationReasonData {
   const documentDate = parseDate(data.documentDate);
@@ -84,7 +87,7 @@ export function deriveInvitationReasonData(data: InvitationReasonData): DerivedI
     applicantBirthYear: String(birthDate.getUTCFullYear()),
     applicantBirthMonth: String(birthDate.getUTCMonth() + 1),
     applicantBirthDay: String(birthDate.getUTCDate()),
-    applicantAge: String(calculateAge(documentDate, birthDate)),
+    applicantAge: String(calculateAgeOnDate(documentDate, birthDate)),
     inviterPostalCodeFirst3,
     inviterPostalCodeLast4,
   };
