@@ -45,4 +45,17 @@ jobs:
         run: exit 1
 
       - name: Build application
-        run: npm run build
+        id: build
+        continue-on-error: true
+        run: npm run build 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+
+      - name: Fail when build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
