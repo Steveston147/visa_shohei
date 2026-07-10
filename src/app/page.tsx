@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, type ChangeEvent } from 'react';
-import { PDFDocument, PDFForm, PDFTextField, PDFCheckBox, PDFFont } from 'pdf-lib';
 import { invitationReasonPdfFields, type InvitationReasonPdfFieldKey } from '../lib/pdfFieldNames';
+import { renderInvitationPdf } from '../lib/renderInvitationPdf';
 
-const templatePath = '/templates/shouhei-riyusho.pdf';
-const fontPath = '/fonts/NotoSansJP-Regular.ttf';
 
 type ProgramInfo = {
   programName: string;
@@ -234,29 +232,9 @@ function calculateAge(onDate: Date, birthDate: Date) {
   return age;
 }
 
-function getFieldName(key: InvitationReasonPdfFieldKey) {
-  const name = invitationReasonPdfFields[key];
-  if (!name) throw new Error(`PDFフィールド名が未設定です: ${requiredFieldLabels[key]}。docs/pdf-field-inspection.md で座標を確認し、src/lib/pdfFieldNames.ts に実際のフィールド名を設定してください。`);
-  return name;
-}
 
 function getMappingStatus(key: InvitationReasonPdfFieldKey) {
   return invitationReasonPdfFields[key] ? 'mapped' : 'unmapped';
-}
-
-function setText(form: PDFForm, key: InvitationReasonPdfFieldKey, value: string, font: PDFFont) {
-  const name = getFieldName(key);
-  const field = form.getField(name);
-  if (!(field instanceof PDFTextField)) throw new Error(`PDFフィールド「${name}」はテキストフィールドではありません。`);
-  field.setText(value);
-  field.updateAppearances(font);
-}
-
-function setCheckbox(form: PDFForm, key: InvitationReasonPdfFieldKey, checked: boolean) {
-  const name = getFieldName(key);
-  const field = form.getField(name);
-  if (!(field instanceof PDFCheckBox)) throw new Error(`PDFフィールド「${name}」はチェックボックスではありません。`);
-  if (checked) field.check(); else field.uncheck();
 }
 
 function safeFileName(value: string) {
@@ -436,52 +414,7 @@ export default function Home() {
     setMessage('PDFを作成しています...');
 
     try {
-      const unmappedRows = mappingRows.filter((row) => row.status !== 'mapped');
-      if (unmappedRows.length > 0) {
-        throw new Error(`PDFフィールド未設定: ${unmappedRows.map((row) => row.label).join('、')}。docs/pdf-field-inspection.md の座標で確認してから設定してください。`);
-      }
-
-      const [templateResponse, fontResponse] = await Promise.all([fetch(templatePath), fetch(fontPath)]);
-      if (!templateResponse.ok) throw new Error(`PDFテンプレートを読み込めませんでした: ${templatePath}`);
-      if (!fontResponse.ok) throw new Error('日本語表示用フォント public/fonts/NotoSansJP-Regular.ttf が見つかりません。READMEの手順に従って配置してください。');
-
-      const pdfDoc = await PDFDocument.load(await templateResponse.arrayBuffer());
-      const fontkit = await import('@pdf-lib/' + 'fontkit').then((module) => module.default);
-      pdfDoc.registerFontkit(fontkit);
-      const japaneseFont = await pdfDoc.embedFont(await fontResponse.arrayBuffer(), { subset: true });
-      const form = pdfDoc.getForm();
-      const reiwaYear = toReiwaYear(documentDate);
-
-      setText(form, 'documentDateYear', String(reiwaYear), japaneseFont);
-      setText(form, 'documentDateMonth', String(documentDate.getUTCMonth() + 1), japaneseFont);
-      setText(form, 'documentDateDay', String(documentDate.getUTCDate()), japaneseFont);
-      setText(form, 'diplomaticMission', sampleData.diplomaticMission, japaneseFont);
-      setText(form, 'inviterPostalCodeFirst3', postalFirst3, japaneseFont);
-      setText(form, 'inviterPostalCodeLast4', postalLast4, japaneseFont);
-      setText(form, 'inviterAddress', sampleData.address, japaneseFont);
-      setText(form, 'inviterName', sampleData.inviterName, japaneseFont);
-      setText(form, 'inviterPhone', sampleData.inviterPhone, japaneseFont);
-      setText(form, 'inviterExtension', sampleData.inviterExtension, japaneseFont);
-      setText(form, 'organisationName', sampleData.organisationName, japaneseFont);
-      setText(form, 'contactPersonName', sampleData.contactPersonName, japaneseFont);
-      setText(form, 'contactPhone', sampleData.contactPhone, japaneseFont);
-      setText(form, 'contactExtension', sampleData.contactExtension, japaneseFont);
-      setText(form, 'applicantNationality', sampleData.nationality, japaneseFont);
-      setText(form, 'applicantOccupation', sampleData.occupation, japaneseFont);
-      setText(form, 'applicantPassportName', sampleData.passportName, japaneseFont);
-      setCheckbox(form, 'applicantGenderMale', sampleData.gender === 'male');
-      setCheckbox(form, 'applicantGenderFemale', sampleData.gender === 'female');
-      setText(form, 'additionalApplicantsCount', '', japaneseFont);
-      setText(form, 'applicantDateOfBirthYear', String(birthDate.getUTCFullYear()), japaneseFont);
-      setText(form, 'applicantDateOfBirthMonth', String(birthDate.getUTCMonth() + 1), japaneseFont);
-      setText(form, 'applicantDateOfBirthDay', String(birthDate.getUTCDate()), japaneseFont);
-      setText(form, 'applicantAge', String(calculateAge(documentDate, birthDate)), japaneseFont);
-      setText(form, 'invitationPurpose', sampleData.invitationPurpose, japaneseFont);
-      setText(form, 'invitationBackground', sampleData.invitationBackground, japaneseFont);
-      setText(form, 'relationshipToApplicant', sampleData.relationshipToApplicant, japaneseFont);
-
-      form.flatten();
-      const bytes = await pdfDoc.save();
+      const bytes = await renderInvitationPdf(sampleValues);
       const blob = new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
