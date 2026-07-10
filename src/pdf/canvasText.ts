@@ -214,9 +214,16 @@ export function drawMultiline(
   ctx.textBaseline = 'top';
 
   const lineHeightPixels = selectedFontPixels * (placement.lineHeight ?? 1.25);
+  const textBlockHeight = selectedLines.length * lineHeightPixels;
   const x = alignedX(rect, placement);
+  const startY = placement.verticalAlign === 'bottom'
+    ? rect.y + rect.height - textBlockHeight
+    : placement.verticalAlign === 'middle'
+      ? rect.y + (rect.height - textBlockHeight) / 2
+      : rect.y;
+
   selectedLines.forEach((line, index) => {
-    ctx.fillText(line, x, rect.y + index * lineHeightPixels);
+    ctx.fillText(line, x, startY + index * lineHeightPixels);
   });
 }
 
