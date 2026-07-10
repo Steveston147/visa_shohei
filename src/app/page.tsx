@@ -4,12 +4,20 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { BatchApplicant, BatchParseResult, CommonInfo, ValidationIssue } from '../domain/batchApplicant';
 import { requiredCommonKeys } from '../domain/batchApplicant';
 import { createInvitationReasonPdfFilename, toInvitationReasonData } from '../domain/batchInvitationMapping';
+import {
+  createGuaranteeLetterPdfFilename,
+  defaultGuaranteeLetterSettings,
+  toGuaranteeLetterData,
+  type GuaranteeLetterSettings,
+  type MissionType,
+} from '../domain/guaranteeLetterData';
 import { fixedInvitationReasonSample, invitationReasonDownloadBaseName, type InvitationReasonData } from '../domain/invitationReasonData';
 import { batchTemplateFilename, createBatchWorkbook, parseBatchWorkbook } from '../lib/batchExcel';
 import { createZipBlob } from '../lib/zip';
 import { canvasToPngBlob, InvitationRenderError } from '../pdf/canvasText';
 import { drawDocumentNumber } from '../pdf/drawDocumentNumber';
 import { exportInvitationPdf } from '../pdf/exportInvitationPdf';
+import { GUARANTEE_CANVAS_HEIGHT, GUARANTEE_CANVAS_WIDTH, renderGuaranteeCanvas } from '../pdf/renderGuaranteeCanvas';
 import { renderInvitationCanvas } from '../pdf/renderInvitationCanvas';
 
 type XlsxModule = typeof import('xlsx/xlsx.mjs');
@@ -83,19 +91,26 @@ async function renderApplicantCanvas(data: InvitationReasonData, documentNumber:
 
 export default function Home() {
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const guaranteeCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [renderMessage, setRenderMessage] = useState('Canvasプレビューを生成できます。');
   const [renderError, setRenderError] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
   const [isDebug, setIsDebug] = useState(false);
   const [excelResult, setExcelResult] = useState<BatchParseResult | null>(null);
   const [selectedSequence, setSelectedSequence] = useState<number | null>(null);
+  const [guaranteeSettings, setGuaranteeSettings] = useState<GuaranteeLetterSettings>(defaultGuaranteeLetterSettings);
 
   useEffect(() => { setIsDebug(new URLSearchParams(window.location.search).get('debug') === '1'); }, []);
 
-  function getSelectedUploadedData(): { applicant: BatchApplicant; data: InvitationReasonData } | null {
+  function getSelectedUploadedData(): { applicant: BatchApplicant; data: InvitationReasonData; common: CommonInfo } | null {
     const applicant = excelResult?.applicants.find((item) => item.sequence === selectedSequence) ?? null;
     const common = excelResult ? completeCommonInfo(excelResult.common) : null;
-    return applicant && common ? { applicant, data: toInvitationReasonData(common, applicant) } : null;
+    return applicant && common ? { applicant, common, data: toInvitationReasonData(common, applicant) } : null;
+  }
+
+  function getSelectedGuaranteeData() {
+    const selected = getSelectedUploadedData();
+    return selected ? { ...selected, guarantee: toGuaranteeLetterData(selected.common, selected.applicant, guaranteeSettings) } : null;
   }
 
   async function regeneratePreview(debugOverride = isDebug) {
@@ -105,12 +120,13 @@ export default function Home() {
       const selected = getSelectedUploadedData();
       if (selected) await renderApplicantCanvas(selected.data, selected.applicant.documentNumber, previewCanvasRef.current, debugOverride);
       else await renderInvitationCanvas(fixedInvitationReasonSample, { canvas: previewCanvasRef.current, debug: debugOverride });
-      setRenderMessage(selected ? `選択中の申請人「${selected.applicant.passportName}」のCanvasプレビューを作成しました。` : '固定サンプルのCanvasプレビューを作成しました。');
+      if (guaranteeCanvasRef.current && selected) await renderGuaranteeCanvas(toGuaranteeLetterData(selected.common, selected.applicant, guaranteeSettings), guaranteeCanvasRef.current);
+      setRenderMessage(selected ? `選択中の申請人「${selected.applicant.passportName}」の2種類のプレビューを作成しました。` : '固定サンプルの招へい理由書プレビューを作成しました。');
     } catch (caughtError) { console.error(caughtError); setRenderError(toJapaneseRenderError(caughtError)); setRenderMessage('Canvasプレビューの作成に失敗しました。'); }
     finally { setIsRendering(false); }
   }
 
-  useEffect(() => { void regeneratePreview(isDebug); }, [isDebug, excelResult, selectedSequence]);
+  useEffect(() => { void regeneratePreview(isDebug); }, [isDebug, excelResult, selectedSequence, guaranteeSettings]);
 
   async function downloadCompletedPng() {
     setIsRendering(true); setRenderError(null); setRenderMessage('PNGを作成しています...');
@@ -134,6 +150,28 @@ export default function Home() {
     catch (caughtError) { console.error(caughtError); setRenderError(toJapaneseRenderError(caughtError)); setRenderMessage('選択中の申請人PDF作成に失敗しました。'); } finally { setIsRendering(false); }
   }
 
+  async function downloadSelectedGuaranteePdf() {
+    const selected = getSelectedGuaranteeData(); if (!selected) return;
+    setIsRendering(true); setRenderError(null); setRenderMessage('身元保証書PDFを作成しています...');
+    try { const canvas = await renderGuaranteeCanvas(selected.guarantee); const blob = await exportInvitationPdf(canvas); downloadBlob(blob, createGuaranteeLetterPdfFilename(selected.applicant)); setRenderMessage('選択中の申請人の身元保証書PDFを作成しました。'); }
+    catch (caughtError) { console.error(caughtError); setRenderError(toJapaneseRenderError(caughtError)); setRenderMessage('身元保証書PDF作成に失敗しました。'); } finally { setIsRendering(false); }
+  }
+
+  async function downloadSelectedDocumentSet() {
+    const selected = getSelectedGuaranteeData(); if (!selected) return;
+    setIsRendering(true); setRenderError(null); setRenderMessage('2種類のPDFを作成しています...');
+    try {
+      const invitationCanvas = await renderApplicantCanvas(selected.data, selected.applicant.documentNumber);
+      const guaranteeCanvas = await renderGuaranteeCanvas(selected.guarantee);
+      const entries = [
+        { filename: createInvitationReasonPdfFilename(selected.applicant), blob: await exportInvitationPdf(invitationCanvas) },
+        { filename: createGuaranteeLetterPdfFilename(selected.applicant), blob: await exportInvitationPdf(guaranteeCanvas) },
+      ];
+      downloadBlob(await createZipBlob(entries), `VisaDocuments_${selected.applicant.passportName.replace(/\s+/g, '_')}.zip`);
+      setRenderMessage('招へい理由書と身元保証書をZIPで作成しました。');
+    } catch (caughtError) { console.error(caughtError); setRenderError(toJapaneseRenderError(caughtError)); setRenderMessage('書類セット作成に失敗しました。'); } finally { setIsRendering(false); }
+  }
+
   async function downloadAllApplicantsZip() {
     const common = excelResult ? completeCommonInfo(excelResult.common) : null;
     if (!excelResult || !common || !excelResult.canGenerateBatch || excelResult.applicants.length === 0) return;
@@ -151,6 +189,22 @@ export default function Home() {
     } catch (caughtError) { console.error(caughtError); setRenderError(toJapaneseRenderError(caughtError)); setRenderMessage('全員分PDFの一括作成に失敗しました。'); } finally { setIsRendering(false); }
   }
 
+  async function downloadAllGuaranteeLettersZip() {
+    const common = excelResult ? completeCommonInfo(excelResult.common) : null;
+    if (!excelResult || !common || !excelResult.canGenerateBatch || excelResult.applicants.length === 0) return;
+    setIsRendering(true); setRenderError(null);
+    try {
+      const entries: { filename: string; blob: Blob }[] = [];
+      for (const [index, applicant] of excelResult.applicants.entries()) {
+        setRenderMessage(`身元保証書を作成しています... ${index + 1}/${excelResult.applicants.length} ${applicant.passportName}`);
+        const canvas = await renderGuaranteeCanvas(toGuaranteeLetterData(common, applicant, guaranteeSettings));
+        entries.push({ filename: createGuaranteeLetterPdfFilename(applicant), blob: await exportInvitationPdf(canvas) });
+      }
+      downloadBlob(await createZipBlob(entries), 'GuaranteeLetter_AllApplicants.zip');
+      setRenderMessage(`${entries.length}名分の身元保証書をZIPで作成しました。`);
+    } catch (caughtError) { console.error(caughtError); setRenderError(toJapaneseRenderError(caughtError)); setRenderMessage('身元保証書の一括作成に失敗しました。'); } finally { setIsRendering(false); }
+  }
+
   async function downloadExcelTemplate() { const XLSX = await loadXlsx(); XLSX.writeFile(createBatchWorkbook(XLSX), batchTemplateFilename); }
 
   async function handleExcelUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -164,8 +218,25 @@ export default function Home() {
   const batchReady = Boolean(excelResult?.canGenerateBatch && excelResult.applicants.length);
 
   return <main>
-    <section className="hero"><p className="eyebrow">招へい理由書 作成ツール</p><h1>複数申請人Excel取込とPDF作成</h1><p>申請人ごとに任意の公文書番号を指定し、個別PDFまたは全員分ZIPを作成できます。</p></section>
-    <section className="rendererSection"><p className="eyebrow">Canvas PDF Renderer</p><h2>選択申請人プレビュー</h2><p>公文書番号は右上の日付の上に表示され、日付の「日」と右端が揃います。空欄の場合は何も表示しません。</p><div className="buttonRow"><button type="button" onClick={() => regeneratePreview(isDebug)} disabled={isRendering}>{isRendering ? '処理中...' : 'プレビューを再生成'}</button><button type="button" onClick={downloadCompletedPng} disabled={isRendering}>完成PNGをダウンロード</button><button type="button" onClick={downloadCompletedPdf} disabled={isRendering}>固定サンプルPDFをダウンロード</button><button type="button" onClick={downloadSelectedApplicantPdf} disabled={isRendering || !selectedReady}>選択中の1名をPDFでダウンロード</button><button type="button" onClick={downloadAllApplicantsZip} disabled={isRendering || !batchReady}>有効な申請人全員をZIPでダウンロード</button></div><div className="canvasFrame"><canvas ref={previewCanvasRef} width={2481} height={3508} aria-label="招へい理由書Canvasプレビュー" /></div><div className="result" aria-live="polite"><h3>レンダリング状況</h3><p>{renderMessage}</p>{renderError ? <p className="error">{renderError}</p> : null}</div></section>
-    <section className="excelSection"><p className="eyebrow">Excel入力</p><h2>複数人用Excelテンプレートのダウンロード・アップロード</h2><p>「申請人一覧」の「公文書番号（任意）」列に、各申請人の番号を入力してください。空欄でもPDFを作成できます。</p><div className="buttonRow"><button type="button" onClick={downloadExcelTemplate}>複数人用Excelテンプレートをダウンロード</button><label className="uploadButton">Excelファイルをアップロード<input type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} /></label></div>{excelResult ? <ExcelPreview result={excelResult} selectedSequence={selectedSequence} onSelectApplicant={(applicant) => setSelectedSequence(applicant.sequence)} /> : null}</section>
+    <section className="hero"><p className="eyebrow">ビザ申請書類 作成ツール</p><h1>招へい理由書と身元保証書</h1><p>同じ申請人データから、1名につき1通の招へい理由書と身元保証書を作成できます。</p></section>
+
+    <section className="excelSection"><p className="eyebrow">身元保証書設定</p><h2>保証人情報</h2><p>公館種別と職業は任意です。大使館・総領事館を未選択のまま出力し、提出時に手書きでチェックすることもできます。</p>
+      <div className="previewGroup">
+        <label>所属・肩書・氏名<input value={guaranteeSettings.guarantorName} onChange={(event) => setGuaranteeSettings((current) => ({ ...current, guarantorName: event.target.value }))} /></label>
+        <label>職業（任意）<input value={guaranteeSettings.guarantorOccupation} onChange={(event) => setGuaranteeSettings((current) => ({ ...current, guarantorOccupation: event.target.value }))} /></label>
+        <label>生年月日<input type="date" value={guaranteeSettings.guarantorDateOfBirth} onChange={(event) => setGuaranteeSettings((current) => ({ ...current, guarantorDateOfBirth: event.target.value }))} /></label>
+        <label>公館種別<select value={guaranteeSettings.missionType} onChange={(event) => setGuaranteeSettings((current) => ({ ...current, missionType: event.target.value as MissionType }))}><option value="none">未選択</option><option value="embassy">大使館</option><option value="consulate">総領事館</option></select></label>
+        <label>保証人FAX（任意）<input value={guaranteeSettings.guarantorFax} onChange={(event) => setGuaranteeSettings((current) => ({ ...current, guarantorFax: event.target.value }))} /></label>
+        <label>担当者FAX（任意）<input value={guaranteeSettings.contactFax} onChange={(event) => setGuaranteeSettings((current) => ({ ...current, contactFax: event.target.value }))} /></label>
+      </div>
+    </section>
+
+    <section className="rendererSection"><p className="eyebrow">Canvas PDF Renderer</p><h2>選択申請人プレビュー</h2><div className="buttonRow"><button type="button" onClick={() => regeneratePreview(isDebug)} disabled={isRendering}>{isRendering ? '処理中...' : 'プレビューを再生成'}</button><button type="button" onClick={downloadCompletedPng} disabled={isRendering}>招へい理由書PNG</button><button type="button" onClick={downloadCompletedPdf} disabled={isRendering}>固定サンプルPDF</button><button type="button" onClick={downloadSelectedApplicantPdf} disabled={isRendering || !selectedReady}>招へい理由書PDF</button><button type="button" onClick={downloadSelectedGuaranteePdf} disabled={isRendering || !selectedReady}>身元保証書PDF</button><button type="button" onClick={downloadSelectedDocumentSet} disabled={isRendering || !selectedReady}>2書類をZIP</button><button type="button" onClick={downloadAllApplicantsZip} disabled={isRendering || !batchReady}>全員の招へい理由書ZIP</button><button type="button" onClick={downloadAllGuaranteeLettersZip} disabled={isRendering || !batchReady}>全員の身元保証書ZIP</button></div>
+      <h3>招へい理由書</h3><div className="canvasFrame"><canvas ref={previewCanvasRef} width={2481} height={3508} aria-label="招へい理由書Canvasプレビュー" /></div>
+      <h3>身元保証書</h3><div className="canvasFrame"><canvas ref={guaranteeCanvasRef} width={GUARANTEE_CANVAS_WIDTH} height={GUARANTEE_CANVAS_HEIGHT} aria-label="身元保証書Canvasプレビュー" /></div>
+      <div className="result" aria-live="polite"><h3>レンダリング状況</h3><p>{renderMessage}</p>{renderError ? <p className="error">{renderError}</p> : null}</div>
+    </section>
+
+    <section className="excelSection"><p className="eyebrow">Excel入力</p><h2>複数人用Excelテンプレートのダウンロード・アップロード</h2><p>身元保証書自体は1名につき1通作成します。Excelに複数人がある場合も、申請人ごとに別々のPDFを出力します。</p><div className="buttonRow"><button type="button" onClick={downloadExcelTemplate}>複数人用Excelテンプレートをダウンロード</button><label className="uploadButton">Excelファイルをアップロード<input type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} /></label></div>{excelResult ? <ExcelPreview result={excelResult} selectedSequence={selectedSequence} onSelectApplicant={(applicant) => setSelectedSequence(applicant.sequence)} /> : null}</section>
   </main>;
 }
