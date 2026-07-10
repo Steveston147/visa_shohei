@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { validateBatch, type BatchValidationResult } from '../domain/batchValidation';
 import { fixedInvitationReasonSample, invitationReasonDownloadBaseName } from '../domain/invitationReasonData';
 import { canvasToPngBlob, InvitationRenderError } from '../pdf/canvasText';
 import { exportInvitationPdf } from '../pdf/exportInvitationPdf';
@@ -54,6 +55,7 @@ type ExcelParseResult = {
   data: ParsedExcelData;
   errors: string[];
   warnings: string[];
+  batch: BatchValidationResult;
 };
 
 type TemplateRow = {
@@ -184,6 +186,11 @@ function ExcelPreview({ result }: { result: ExcelParseResult }) {
     <section className="excelPreview">
       <h3>Excel取込プレビュー</h3>
       <p className="fileName">ファイル名: {result.fileName}</p>
+      <PreviewGroup title="Common information summary" rows={[
+        { label: '担当者氏名', value: data.organisation.contactPersonName },
+        { label: '招へい経緯', value: data.invitation.background },
+        { label: '申請人との関係', value: data.invitation.relationship },
+      ]} />
       <PreviewGroup title="Program information" rows={[
         { label: 'プログラム名', value: data.program.programName },
         { label: '作成日', value: data.program.documentDate },
@@ -214,6 +221,42 @@ function ExcelPreview({ result }: { result: ExcelParseResult }) {
         { label: '招へい経緯', value: data.invitation.background },
         { label: '申請人との関係', value: data.invitation.relationship },
       ]} />
+      <section className="applicantReview">
+        <h3>Applicant review</h3>
+        <p>有効な申請人: {result.batch.validApplicantCount} / {result.batch.reviewApplicants.length}</p>
+        <div className="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>sequence</th>
+                <th>Excel source row</th>
+                <th>passport name</th>
+                <th>nationality</th>
+                <th>occupation</th>
+                <th>gender</th>
+                <th>date of birth</th>
+                <th>calculated age</th>
+                <th>status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.batch.reviewApplicants.map((applicant) => (
+                <tr key={`${applicant.sourceRow}-${applicant.sequence}`} className={applicant.status === 'error' ? 'rowError' : undefined}>
+                  <td>{applicant.sequence}</td>
+                  <td>{applicant.sourceRow}</td>
+                  <td>{applicant.passportName || '（未入力）'}</td>
+                  <td>{applicant.nationality || '（未入力）'}</td>
+                  <td>{applicant.occupation || '（未入力）'}</td>
+                  <td>{applicant.gender || '（未入力）'}</td>
+                  <td>{applicant.dateOfBirth || '（未入力）'}</td>
+                  <td>{applicant.age ?? '（計算不可）'}</td>
+                  <td>{applicant.status === 'valid' ? 'valid' : applicant.errors.join(' / ')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
       <div className="validationBlock errors"><h3>Validation errors</h3>{result.errors.length ? <ul>{result.errors.map((item) => <li key={item}>{item}</li>)}</ul> : <p>エラーはありません。</p>}</div>
       <div className="validationBlock warnings"><h3>Validation warnings</h3>{result.warnings.length ? <ul>{result.warnings.map((item) => <li key={item}>{item}</li>)}</ul> : <p>警告はありません。</p>}</div>
     </section>
@@ -349,7 +392,8 @@ export default function Home() {
       }
       validateExcelData(data, errors);
     } catch (caughtError) { errors.push(caughtError instanceof Error ? caughtError.message : 'Excelファイルの読み込みに失敗しました。'); }
-    setExcelResult({ fileName: file.name, data, errors, warnings });
+    const batch = validateBatch([{ sourceRow: 14, ...data.applicant }]);
+    setExcelResult({ fileName: file.name, data, errors, warnings, batch });
     event.target.value = '';
   }
 
