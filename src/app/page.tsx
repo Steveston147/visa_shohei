@@ -28,7 +28,6 @@ function IssueList({ title, issues, className }: { title: string; issues: Valida
 function ExcelPreview({ result }: { result: BatchParseResult }) {
   const errors = result.issues.filter((issue) => issue.level === 'error');
   const warnings = result.issues.filter((issue) => issue.level === 'warning');
-  const rowErrors = new Set(errors.filter((issue) => issue.scope === 'applicant' && issue.sourceRow).map((issue) => issue.sourceRow));
   return (
     <section className="excelPreview">
       <h3>複数人Excel取込結果</h3>
@@ -41,10 +40,42 @@ function ExcelPreview({ result }: { result: BatchParseResult }) {
         <div className={result.canGenerateBatch ? 'ready' : 'notReady'}><span>一括生成準備状況</span><strong>{result.canGenerateBatch ? '準備OK' : '未準備'}</strong></div>
       </div>
       <PreviewGroup title="共通情報の概要" rows={[
-        { label: 'プログラム名', value: result.common.programName }, { label: '作成日', value: result.common.documentDate }, { label: '宛先公館', value: result.common.diplomaticMission },
-        { label: '招へい人', value: result.common.inviterName }, { label: '担当者所属先', value: result.common.organisationName }, { label: '招へい目的', value: result.common.invitationPurpose },
+        { label: 'プログラム名', value: result.common.programName },
+        { label: '作成日', value: result.common.documentDate },
+        { label: '宛先公館', value: result.common.diplomaticMission },
+        { label: '招へい人', value: result.common.inviterName },
+        { label: '担当者所属先', value: result.common.organisationName },
+        { label: '担当者氏名', value: result.common.contactPersonName },
+        { label: '招へい目的', value: result.common.invitationPurpose },
+        { label: '招へい経緯', value: result.common.invitationBackground },
+        { label: '申請人との関係', value: result.common.relationshipToApplicant },
       ]} />
-      <section className="previewGroup"><h3>申請人一覧</h3><div className="tableWrap"><table><thead><tr><th>連番</th><th>Excel行</th><th>氏名</th><th>国籍</th><th>職業</th><th>性別</th><th>生年月日</th><th>自動計算年齢</th><th>状態</th></tr></thead><tbody>{result.applicants.map((applicant) => <tr key={`${applicant.sourceRow}-${applicant.sequence}`} className={rowErrors.has(applicant.sourceRow) ? 'rowError' : ''}><td>{applicant.sequence}</td><td>{applicant.sourceRow}</td><td>{applicant.passportName}</td><td>{applicant.nationality}</td><td>{applicant.occupation}</td><td>{applicant.gender}</td><td>{applicant.dateOfBirth}</td><td>{applicant.calculatedAge}</td><td>{rowErrors.has(applicant.sourceRow) ? 'エラー' : '有効'}</td></tr>)}</tbody></table></div>{result.applicants.length ? null : <p>有効な申請人はありません。</p>}</section>
+      <section className="previewGroup">
+        <h3>申請人一覧</h3>
+        <div className="tableWrap">
+          <table>
+            <thead>
+              <tr><th>連番</th><th>Excel行</th><th>氏名</th><th>国籍</th><th>職業</th><th>性別</th><th>生年月日</th><th>自動計算年齢</th><th>状態</th></tr>
+            </thead>
+            <tbody>
+              {result.reviewApplicants.map((applicant) => (
+                <tr key={`${applicant.sourceRow}-${applicant.sequence}`} className={applicant.status === 'error' ? 'rowError' : ''}>
+                  <td>{applicant.sequence}</td>
+                  <td>{applicant.sourceRow}</td>
+                  <td>{applicant.passportName || '（未入力）'}</td>
+                  <td>{applicant.nationality || '（未入力）'}</td>
+                  <td>{applicant.occupation || '（未入力）'}</td>
+                  <td>{applicant.gender || '（未入力）'}</td>
+                  <td>{applicant.dateOfBirth || '（未入力）'}</td>
+                  <td>{applicant.calculatedAge ?? '（計算不可）'}</td>
+                  <td>{applicant.status === 'valid' ? '有効' : applicant.errors.join('／')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {result.reviewApplicants.length ? null : <p>申請人は読み込まれていません。</p>}
+      </section>
       <IssueList title="エラー一覧" issues={errors} className="errors" />
       <IssueList title="警告一覧" issues={warnings} className="warnings" />
     </section>
@@ -109,7 +140,7 @@ export default function Home() {
     const file = event.target.files?.[0];
     if (!file) return;
     try { const XLSX = await loadXlsx(); const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true }); setExcelResult(parseBatchWorkbook(XLSX, workbook, file.name)); }
-    catch (caughtError) { setExcelResult({ fileName: file.name, common: {}, applicants: [], loadedApplicantRows: 0, validApplicantCount: 0, canGenerateBatch: false, issues: [{ level: 'error', scope: 'common', field: 'file', message: caughtError instanceof Error ? caughtError.message : 'Excelファイルの読み込みに失敗しました。' }] }); }
+    catch (caughtError) { setExcelResult({ fileName: file.name, common: {}, reviewApplicants: [], applicants: [], loadedApplicantRows: 0, validApplicantCount: 0, canGenerateBatch: false, issues: [{ level: 'error', scope: 'common', field: 'file', message: caughtError instanceof Error ? caughtError.message : 'Excelファイルの読み込みに失敗しました。' }] }); }
     event.target.value = '';
   }
 
