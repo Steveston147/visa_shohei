@@ -41,6 +41,19 @@ export type BatchApplicant = {
   calculatedAge: number;
 };
 
+export type ReviewApplicant = {
+  sequence: number;
+  sourceRow: number;
+  nationality: string;
+  occupation: string;
+  passportName: string;
+  gender: string;
+  dateOfBirth: string;
+  calculatedAge: number | null;
+  status: 'valid' | 'error';
+  errors: string[];
+};
+
 export type ApplicantDraft = {
   sourceRow: number;
   nationality: string;
@@ -53,6 +66,7 @@ export type ApplicantDraft = {
 export type BatchParseResult = {
   fileName: string;
   common: Partial<CommonInfo>;
+  reviewApplicants: ReviewApplicant[];
   applicants: BatchApplicant[];
   issues: ValidationIssue[];
   loadedApplicantRows: number;
@@ -115,7 +129,6 @@ export function calculateAge(documentDate: string, dateOfBirth: string) {
 
 export function validateBatch(common: Partial<CommonInfo>, drafts: ApplicantDraft[], baseIssues: ValidationIssue[] = []): Omit<BatchParseResult, 'fileName'> {
   const issues = [...baseIssues];
-  const commonKeys = new Set(commonInfoFields);
   for (const key of requiredCommonKeys) {
     if (!(key in common)) issues.push({ level: 'error', scope: 'common', field: key, message: `必須keyがありません: ${key}` });
     else if (!String(common[key] ?? '').trim()) issues.push({ level: 'error', scope: 'common', field: key, message: `必須値が空欄です: ${getCommonFieldLabel(key)}` });
@@ -124,35 +137,78 @@ export function validateBatch(common: Partial<CommonInfo>, drafts: ApplicantDraf
   if (common.documentDate && !normalizeDateInput(common.documentDate)) issues.push({ level: 'error', scope: 'common', field: 'documentDate', message: '作成日は実在する YYYY-MM-DD または YYYY/M/D で入力してください。' });
 
   const documentDate = common.documentDate && normalizeDateInput(common.documentDate);
+  const reviewApplicants: ReviewApplicant[] = [];
   const applicants: BatchApplicant[] = [];
   const nameCounts = new Map<string, number>();
+
   for (const draft of drafts) {
-    const rowIssuesBefore = issues.length;
-    if (!draft.nationality) issues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'nationality', message: '国籍は必須です。' });
-    if (!draft.occupation) issues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'occupation', message: '職業は必須です。' });
-    if (!draft.passportName) issues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'passportName', message: '氏名は必須です。' });
-    else if (!/^[A-Za-z '\-]+$/.test(draft.passportName)) issues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'passportName', message: '氏名は英字、空白、ハイフン、アポストロフィのみで入力してください。' });
-    const gender = normalizeGender(draft.gender);
-    if (!draft.gender) issues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'gender', message: '性別は必須です。' });
-    else if (!gender) issues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'gender', message: '性別は Male/male/M/男 または Female/female/F/女 で入力してください。' });
-    const dob = normalizeDateInput(draft.dateOfBirth);
-    if (!draft.dateOfBirth) issues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'dateOfBirth', message: '生年月日は必須です。' });
-    else if (!dob) issues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'dateOfBirth', message: '生年月日は実在する YYYY-MM-DD または YYYY/M/D で入力してください。曖昧な形式は使えません。' });
-    let age: number | null = null;
-    if (documentDate && dob) {
-      age = calculateAge(documentDate, dob);
-      if (dob > documentDate) issues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'dateOfBirth', message: '生年月日は作成日以前で入力してください。' });
-      if (age < 0 || age > 120) issues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'dateOfBirth', message: '年齢は0～120歳の範囲である必要があります。' });
+    const sequence = reviewApplicants.length + 1;
+    const nationality = draft.nationality.trim();
+    const occupation = draft.occupation.trim();
+    const passportName = draft.passportName.trim();
+    const genderInput = draft.gender.trim();
+    const dateOfBirthInput = draft.dateOfBirth.trim();
+    const rowIssues: ValidationIssue[] = [];
+
+    if (!nationality) rowIssues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'nationality', message: '国籍は必須です。' });
+    if (!occupation) rowIssues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'occupation', message: '職業は必須です。' });
+    if (!passportName) rowIssues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'passportName', message: '氏名は必須です。' });
+    else if (!/^[A-Za-z '\-]+$/.test(passportName)) rowIssues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'passportName', message: '氏名は英字、空白、ハイフン、アポストロフィのみで入力してください。' });
+
+    const gender = normalizeGender(genderInput);
+    if (!genderInput) rowIssues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'gender', message: '性別は必須です。' });
+    else if (!gender) rowIssues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'gender', message: '性別は Male/male/M/男 または Female/female/F/女 で入力してください。' });
+
+    const dateOfBirth = normalizeDateInput(dateOfBirthInput);
+    if (!dateOfBirthInput) rowIssues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'dateOfBirth', message: '生年月日は必須です。' });
+    else if (!dateOfBirth) rowIssues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'dateOfBirth', message: '生年月日は実在する YYYY-MM-DD または YYYY/M/D で入力してください。曖昧な形式は使えません。' });
+
+    let calculatedAge: number | null = null;
+    if (documentDate && dateOfBirth) {
+      calculatedAge = calculateAge(documentDate, dateOfBirth);
+      if (dateOfBirth > documentDate) rowIssues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'dateOfBirth', message: '生年月日は作成日以前で入力してください。' });
+      if (calculatedAge < 0 || calculatedAge > 120) rowIssues.push({ level: 'error', scope: 'applicant', sourceRow: draft.sourceRow, field: 'dateOfBirth', message: '年齢は0～120歳の範囲である必要があります。' });
     }
-    if (draft.passportName) {
-      const key = draft.passportName.toUpperCase();
+
+    if (passportName) {
+      const key = passportName.toUpperCase();
       nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1);
     }
-    const hasRowError = issues.slice(rowIssuesBefore).some((issue) => issue.level === 'error');
-    if (!hasRowError && gender && dob && age !== null) applicants.push({ sequence: applicants.length + 1, sourceRow: draft.sourceRow, nationality: draft.nationality, occupation: draft.occupation, passportName: draft.passportName, gender, dateOfBirth: dob, calculatedAge: age });
+
+    issues.push(...rowIssues);
+    const rowErrors = rowIssues.filter((issue) => issue.level === 'error');
+    const status: ReviewApplicant['status'] = rowErrors.length ? 'error' : 'valid';
+    reviewApplicants.push({
+      sequence,
+      sourceRow: draft.sourceRow,
+      nationality,
+      occupation,
+      passportName,
+      gender: gender ?? genderInput,
+      dateOfBirth: dateOfBirth ?? dateOfBirthInput,
+      calculatedAge,
+      status,
+      errors: rowErrors.map((issue) => issue.message),
+    });
+
+    if (status === 'valid' && gender && dateOfBirth && calculatedAge !== null) {
+      applicants.push({ sequence, sourceRow: draft.sourceRow, nationality, occupation, passportName, gender, dateOfBirth, calculatedAge });
+    }
   }
-  for (const [name, count] of nameCounts) if (count > 1) issues.push({ level: 'warning', scope: 'applicant', field: 'passportName', message: `同じパスポート氏名が複数あります: ${name}` });
-  const hasCommonError = issues.some((issue) => issue.level === 'error' && issue.scope === 'common');
+
+  for (const [name, count] of nameCounts) {
+    if (count > 1) issues.push({ level: 'warning', scope: 'applicant', field: 'passportName', message: `同じパスポート氏名が複数あります: ${name}` });
+  }
+
   const hasError = issues.some((issue) => issue.level === 'error');
-  return { common, applicants, issues, loadedApplicantRows: drafts.length, validApplicantCount: applicants.length, canGenerateBatch: !hasCommonError && applicants.length > 0 && !hasError };
+  const validApplicantCount = reviewApplicants.filter((applicant) => applicant.status === 'valid').length;
+  return {
+    common,
+    reviewApplicants,
+    applicants,
+    issues,
+    loadedApplicantRows: reviewApplicants.length,
+    validApplicantCount,
+    canGenerateBatch: reviewApplicants.length > 0 && !hasError && applicants.length === reviewApplicants.length,
+  };
 }
