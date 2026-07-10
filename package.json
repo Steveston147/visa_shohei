@@ -6,16 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit",
-    "inspect:pdf": "tsx scripts/inspectPdfFields.ts",
-    "generate:sample-pdf": "tsx scripts/generateSamplePdf.ts"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "next": "latest",
     "pdf-lib": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "@pdf-lib/fontkit": "latest",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

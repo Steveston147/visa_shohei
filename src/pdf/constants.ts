@@ -1,0 +1,10 @@
+export const A4_WIDTH_MM = 210;
+export const A4_HEIGHT_MM = 297;
+export const PDF_POINTS_PER_MM = 72 / 25.4;
+export const A4_WIDTH_PT = A4_WIDTH_MM * PDF_POINTS_PER_MM;
+export const A4_HEIGHT_PT = A4_HEIGHT_MM * PDF_POINTS_PER_MM;
+export const BACKGROUND_PATH = '/templates/shouhei-riyusho-background-300dpi.png';
+export const FONT_PATH = '/fonts/NotoSansJP-Regular.ttf';
+export const CANVAS_FONT_FAMILY = 'VisaFormFont';
+export const BACKGROUND_WIDTH_PX = 2481;
+export const BACKGROUND_HEIGHT_PX = 3508;
