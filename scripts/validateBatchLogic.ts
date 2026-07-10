@@ -23,14 +23,27 @@ assert.equal(normalizeGender('unknown'), null);
 
 let result = validateBatch(common, []);
 assert.equal(result.loadedApplicantRows, 0, 'No.だけの行はparser側で無視され、validationには渡されない');
+assert.equal(result.reviewApplicants.length, 0, '空行はreview一覧にも追加されない');
 
 result = validateBatch(common, [applicant({ occupation: '' })]);
-assert.equal(result.issues.some((issue) => issue.level === 'error' && issue.scope === 'applicant' && issue.sourceRow === 2), true, '部分入力行はerror');
+assert.equal(result.reviewApplicants.length, 1, '部分入力行はreview一覧に残る');
+assert.equal(result.reviewApplicants[0].sourceRow, 2, 'Excel行番号を保持する');
+assert.equal(result.reviewApplicants[0].status, 'error', '部分入力行はerror状態になる');
+assert.equal(result.reviewApplicants[0].errors.length > 0, true, '部分入力行に行別エラーがある');
+assert.equal(result.applicants.length, 0, '部分入力行は有効な申請人には含めない');
+assert.equal(result.validApplicantCount, 0, '部分入力行は有効人数に含めない');
 assert.equal(result.canGenerateBatch, false, 'errorがあればcanGenerateBatch=false');
 
 const warning: ValidationIssue = { level: 'warning', scope: 'common', field: 'unknownKey', message: '不明なkeyです' };
 result = validateBatch(common, [applicant()], [warning]);
+assert.equal(result.reviewApplicants.length, 1, '有効行もreview一覧に表示する');
+assert.equal(result.validApplicantCount, 1, '有効行を有効人数に含める');
 assert.equal(result.canGenerateBatch, true, 'warningだけならcanGenerateBatch=true');
+
+result = validateBatch({ ...common, documentDate: '' }, [applicant()]);
+assert.equal(result.reviewApplicants[0].status, 'valid', '共通情報エラーだけなら申請人行自体は有効');
+assert.equal(result.validApplicantCount, 1, '共通情報エラーでも申請人行自体の有効人数は保持する');
+assert.equal(result.canGenerateBatch, false, '共通情報エラーがあれば一括生成不可');
 
 result = validateBatch(common, [applicant({ sourceRow: 2, passportName: 'ZHANG WEI' }), applicant({ sourceRow: 3, passportName: 'ZHANG WEI' })]);
 assert.equal(result.issues.some((issue) => issue.level === 'warning' && issue.field === 'passportName'), true, '重複氏名はwarning');
