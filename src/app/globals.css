@@ -272,3 +272,23 @@ th {
 .rowError td {
   background: #fef2f2;
 }
+
+.rowSelected td {
+  background: #eff6ff;
+  box-shadow: inset 0 1px 0 #bfdbfe, inset 0 -1px 0 #bfdbfe;
+}
+
+.selectedApplicant {
+  border-left: 4px solid #1d4ed8;
+  background: #eff6ff;
+  font-weight: 700;
+  margin: 16px 0;
+  padding: 10px 12px;
+}
+
+.selectApplicantButton {
+  font-size: 0.85rem;
+  margin: 0;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
