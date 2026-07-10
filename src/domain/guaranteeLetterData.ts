@@ -1,9 +1,12 @@
 import type { BatchApplicant, CommonInfo } from './batchApplicant';
+import { calculateAgeFromDates } from './invitationReasonData';
+
+export type MissionType = 'embassy' | 'consulate' | 'none';
 
 export type GuaranteeLetterData = {
   documentDate: string;
   diplomaticMission: string;
-  missionType: 'embassy' | 'consulate';
+  missionType: MissionType;
 
   applicantNationality: string;
   applicantOccupation: string;
@@ -11,13 +14,13 @@ export type GuaranteeLetterData = {
   applicantGender: 'male' | 'female';
   applicantDateOfBirth: string;
   applicantAge: number;
-  additionalApplicantsCount: number;
 
   guarantorPostalCode: string;
   guarantorAddress: string;
   guarantorOccupation: string;
   guarantorName: string;
   guarantorDateOfBirth: string;
+  guarantorAge: number | null;
   guarantorPhone: string;
   guarantorExtension: string;
   guarantorFax: string;
@@ -30,18 +33,19 @@ export type GuaranteeLetterData = {
   contactFax: string;
 };
 
-export type GuaranteeLetterDefaults = Pick<
-  GuaranteeLetterData,
-  | 'missionType'
-  | 'guarantorOccupation'
-  | 'guarantorDateOfBirth'
-  | 'guarantorFax'
-  | 'contactFax'
->;
+export type GuaranteeLetterSettings = {
+  missionType: MissionType;
+  guarantorOccupation: string;
+  guarantorName: string;
+  guarantorDateOfBirth: string;
+  guarantorFax: string;
+  contactFax: string;
+};
 
-export const defaultGuaranteeLetterDefaults: GuaranteeLetterDefaults = {
-  missionType: 'consulate',
+export const defaultGuaranteeLetterSettings: GuaranteeLetterSettings = {
+  missionType: 'none',
   guarantorOccupation: '',
+  guarantorName: '立命館大学　国際業務課課長　田中 猛',
   guarantorDateOfBirth: '',
   guarantorFax: '',
   contactFax: '',
@@ -50,12 +54,17 @@ export const defaultGuaranteeLetterDefaults: GuaranteeLetterDefaults = {
 export function toGuaranteeLetterData(
   common: CommonInfo,
   applicant: BatchApplicant,
-  defaults: GuaranteeLetterDefaults = defaultGuaranteeLetterDefaults,
+  settings: GuaranteeLetterSettings = defaultGuaranteeLetterSettings,
 ): GuaranteeLetterData {
+  const guarantorDateOfBirth = settings.guarantorDateOfBirth.trim();
+  const guarantorAge = guarantorDateOfBirth
+    ? calculateAgeFromDates(common.documentDate, guarantorDateOfBirth)
+    : null;
+
   return {
     documentDate: common.documentDate,
     diplomaticMission: common.diplomaticMission,
-    missionType: defaults.missionType,
+    missionType: settings.missionType,
 
     applicantNationality: applicant.nationality,
     applicantOccupation: applicant.occupation,
@@ -63,23 +72,23 @@ export function toGuaranteeLetterData(
     applicantGender: applicant.gender,
     applicantDateOfBirth: applicant.dateOfBirth,
     applicantAge: applicant.calculatedAge,
-    additionalApplicantsCount: 0,
 
     guarantorPostalCode: common.inviterPostalCode,
     guarantorAddress: common.inviterAddress,
-    guarantorOccupation: defaults.guarantorOccupation,
-    guarantorName: common.inviterName,
-    guarantorDateOfBirth: defaults.guarantorDateOfBirth,
+    guarantorOccupation: settings.guarantorOccupation.trim(),
+    guarantorName: settings.guarantorName.trim() || common.inviterName,
+    guarantorDateOfBirth,
+    guarantorAge,
     guarantorPhone: common.inviterPhone,
     guarantorExtension: common.inviterExtension,
-    guarantorFax: defaults.guarantorFax,
+    guarantorFax: settings.guarantorFax.trim(),
     relationshipToApplicant: common.relationshipToApplicant,
 
     organisationName: common.organisationName,
     contactPersonName: common.contactPersonName,
     contactPhone: common.contactPhone,
     contactExtension: common.contactExtension,
-    contactFax: defaults.contactFax,
+    contactFax: settings.contactFax.trim(),
   };
 }
 
