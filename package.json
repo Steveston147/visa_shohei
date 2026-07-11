@@ -8,7 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "validate:batch": "tsx scripts/validateBatchLogic.ts",
-    "validate:guarantee": "tsx scripts/validateGuaranteeLogic.ts"
+    "validate:guarantee": "tsx scripts/validateGuaranteeLogic.ts",
+    "validate:guarantee-background": "tsx scripts/validateGuaranteeBackground.ts"
   },
   "dependencies": {
     "next": "latest",
