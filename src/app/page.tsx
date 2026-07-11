@@ -32,30 +32,34 @@ import {
 import { renderInvitationCanvas } from '../pdf/renderInvitationCanvas';
 
 type XlsxModule = typeof import('xlsx/xlsx.mjs');
+type PreviewMode = 'invitation' | 'guarantee' | 'both';
+type SidebarTab = 'applicant' | 'document' | 'guarantor';
 
 async function loadXlsx(): Promise<XlsxModule> {
   return import('xlsx/xlsx.mjs');
 }
 
-function PreviewGroup({
-  title,
-  rows,
-}: {
-  title: string;
-  rows: { label: string; value: string | number | undefined }[];
-}) {
+function formatJapanDateTime(date: Date) {
+  return new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZoneName: 'short',
+  }).format(date);
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string | number | null | undefined }) {
+  const displayValue = value === null || value === undefined || value === '' ? '（未入力）' : String(value);
   return (
-    <section className="previewGroup">
-      <h3>{title}</h3>
-      <dl>
-        {rows.map((row) => (
-          <div key={row.label}>
-            <dt>{row.label}</dt>
-            <dd>{row.value === undefined || row.value === '' ? '（未入力）' : row.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
+    <div className="readOnlyField">
+      <dt>{label}</dt>
+      <dd>{displayValue}</dd>
+    </div>
   );
 }
 
@@ -68,22 +72,19 @@ function IssueList({
   issues: ValidationIssue[];
   className: string;
 }) {
+  if (!issues.length) return null;
   return (
-    <div className={`validationBlock ${className}`}>
-      <h3>{title}</h3>
-      {issues.length ? (
-        <ul>
-          {issues.map((issue, index) => (
-            <li key={`${issue.level}-${issue.scope}-${issue.sourceRow}-${issue.field}-${index}`}>
-              {issue.sourceRow ? `${issue.sourceRow}行目: ` : ''}
-              [{issue.scope}] {issue.field}: {issue.message}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>ありません。</p>
-      )}
-    </div>
+    <details className={`issueList ${className}`}>
+      <summary>{title}（{issues.length}件）</summary>
+      <ul>
+        {issues.map((issue, index) => (
+          <li key={`${issue.level}-${issue.scope}-${issue.sourceRow}-${issue.field}-${index}`}>
+            {issue.sourceRow ? `Excel ${issue.sourceRow}行目：` : ''}
+            {issue.message}
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
@@ -108,7 +109,7 @@ function completeCommonInfo(common: Partial<CommonInfo>): CommonInfo | null {
   };
 }
 
-function ExcelPreview({
+function ApplicantList({
   result,
   selectedSequence,
   onSelectApplicant,
@@ -124,102 +125,55 @@ function ExcelPreview({
       .filter((issue) => issue.scope === 'applicant' && issue.sourceRow)
       .map((issue) => issue.sourceRow),
   );
-  const selectedApplicant = result.applicants.find(
-    (applicant) => applicant.sequence === selectedSequence,
-  ) ?? null;
 
   return (
-    <section className="excelPreview">
-      <h3>複数人Excel取込結果</h3>
-      <p className="fileName">ファイル名: {result.fileName}</p>
-      <div className="statsGrid">
-        <div><span>読込人数</span><strong>{result.loadedApplicantRows}</strong></div>
-        <div><span>有効な申請人数</span><strong>{result.validApplicantCount}</strong></div>
-        <div><span>エラー件数</span><strong>{errors.length}</strong></div>
-        <div><span>警告件数</span><strong>{warnings.length}</strong></div>
-        <div className={result.canGenerateBatch ? 'ready' : 'notReady'}>
-          <span>一括生成準備状況</span>
-          <strong>{result.canGenerateBatch ? '準備OK' : '未準備'}</strong>
-        </div>
+    <>
+      <div className="compactStats" aria-label="Excel読込結果">
+        <div><span>読込</span><strong>{result.loadedApplicantRows}</strong></div>
+        <div><span>作成可能</span><strong>{result.validApplicantCount}</strong></div>
+        <div className={errors.length ? 'statError' : ''}><span>エラー</span><strong>{errors.length}</strong></div>
+        <div className={warnings.length ? 'statWarning' : ''}><span>警告</span><strong>{warnings.length}</strong></div>
       </div>
-      <p className="selectedApplicant">
-        現在選択中の申請人: {' '}
-        {selectedApplicant
-          ? `${selectedApplicant.sequence}. ${selectedApplicant.passportName}${selectedApplicant.documentNumber ? `／公文書番号: ${selectedApplicant.documentNumber}` : ''}`
-          : '（未選択）'}
-      </p>
-      <PreviewGroup
-        title="共通情報の概要"
-        rows={[
-          { label: 'プログラム名', value: result.common.programName },
-          { label: '作成日', value: result.common.documentDate },
-          { label: '宛先公館', value: result.common.diplomaticMission },
-          { label: '招へい人', value: result.common.inviterName },
-          { label: '担当者所属先', value: result.common.organisationName },
-          { label: '担当者氏名', value: result.common.contactPersonName },
-          { label: '招へい目的', value: result.common.invitationPurpose },
-          { label: '招へい経緯', value: result.common.invitationBackground },
-          { label: '申請人との関係', value: result.common.relationshipToApplicant },
-        ]}
-      />
-      <section className="previewGroup">
-        <h3>申請人一覧</h3>
-        <div className="tableWrap">
-          <table>
-            <thead>
-              <tr>
-                <th>選択</th><th>連番</th><th>Excel行</th><th>公文書番号</th>
-                <th>氏名</th><th>国籍</th><th>職業</th><th>性別</th>
-                <th>生年月日</th><th>年齢</th><th>状態</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.reviewApplicants.map((row) => {
-                const applicant = result.applicants.find(
-                  (item) => item.sequence === row.sequence,
-                ) ?? null;
-                const isSelected = row.sequence === selectedSequence;
-                const hasError = row.status === 'error' || rowErrors.has(row.sourceRow);
-                return (
-                  <tr
-                    key={`${row.sourceRow}-${row.sequence}`}
-                    className={`${hasError ? 'rowError' : ''} ${isSelected ? 'rowSelected' : ''}`.trim()}
-                    onClick={() => applicant && onSelectApplicant(applicant)}
-                  >
-                    <td>
-                      <button
-                        type="button"
-                        className="selectApplicantButton"
-                        disabled={!applicant}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (applicant) onSelectApplicant(applicant);
-                        }}
-                      >
-                        {isSelected ? '選択中' : applicant ? '選択' : '不可'}
-                      </button>
-                    </td>
-                    <td>{row.sequence}</td>
-                    <td>{row.sourceRow}</td>
-                    <td>{row.documentNumber || '（空欄）'}</td>
-                    <td>{row.passportName || '（未入力）'}</td>
-                    <td>{row.nationality || '（未入力）'}</td>
-                    <td>{row.occupation || '（未入力）'}</td>
-                    <td>{row.gender || '（未入力）'}</td>
-                    <td>{row.dateOfBirth || '（未入力）'}</td>
-                    <td>{row.calculatedAge ?? '（計算不可）'}</td>
-                    <td>{row.status === 'valid' ? '有効' : row.errors.join('／')}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {result.reviewApplicants.length ? null : <p>申請人は読み込まれていません。</p>}
-      </section>
-      <IssueList title="エラー一覧" issues={errors} className="errors" />
-      <IssueList title="警告一覧" issues={warnings} className="warnings" />
-    </section>
+
+      <div className={`readinessBanner ${result.canGenerateBatch ? 'ready' : 'notReady'}`}>
+        <strong>{result.canGenerateBatch ? '書類作成準備：完了' : '書類作成準備：要確認'}</strong>
+        <span>
+          {result.canGenerateBatch
+            ? `${result.validApplicantCount}名分の書類を作成できます。`
+            : 'エラー内容を確認し、Excelを修正して再アップロードしてください。'}
+        </span>
+      </div>
+
+      <div className="applicantList" role="list" aria-label="申請人一覧">
+        {result.reviewApplicants.map((row) => {
+          const applicant = result.applicants.find((item) => item.sequence === row.sequence) ?? null;
+          const isSelected = row.sequence === selectedSequence;
+          const hasError = row.status === 'error' || rowErrors.has(row.sourceRow);
+          return (
+            <button
+              key={`${row.sourceRow}-${row.sequence}`}
+              type="button"
+              className={`applicantRow ${isSelected ? 'selected' : ''} ${hasError ? 'hasError' : ''}`}
+              disabled={!applicant}
+              onClick={() => applicant && onSelectApplicant(applicant)}
+            >
+              <span className="applicantSequence">{String(row.sequence).padStart(2, '0')}</span>
+              <span className="applicantIdentity">
+                <strong>{row.passportName || '氏名未入力'}</strong>
+                <small>{row.nationality || '国籍未入力'}／Excel {row.sourceRow}行目</small>
+              </span>
+              <span className={`statusBadge ${hasError ? 'error' : 'valid'}`}>
+                {hasError ? 'エラー' : isSelected ? '選択中' : '作成可能'}
+              </span>
+            </button>
+          );
+        })}
+        {!result.reviewApplicants.length ? <p className="emptyState">申請人は読み込まれていません。</p> : null}
+      </div>
+
+      <IssueList title="エラーを確認" issues={errors} className="errors" />
+      <IssueList title="警告を確認" issues={warnings} className="warnings" />
+    </>
   );
 }
 
@@ -254,7 +208,7 @@ async function renderApplicantCanvas(
 export default function Home() {
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const guaranteeCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [renderMessage, setRenderMessage] = useState('Canvasプレビューを生成できます。');
+  const [renderMessage, setRenderMessage] = useState('プレビューを生成できます。');
   const [renderError, setRenderError] = useState<string | null>(null);
   const [guaranteePreviewMessage, setGuaranteePreviewMessage] = useState(
     '身元保証書の正式様式を読み込んでいます...',
@@ -267,9 +221,20 @@ export default function Home() {
   const [guaranteeSettings, setGuaranteeSettings] = useState<GuaranteeLetterSettings>(
     defaultGuaranteeLetterSettings,
   );
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('invitation');
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>('applicant');
+  const [japanTime, setJapanTime] = useState('日本時間を取得しています...');
+  const [uploadedAt, setUploadedAt] = useState<string | null>(null);
 
   useEffect(() => {
     setIsDebug(new URLSearchParams(window.location.search).get('debug') === '1');
+  }, []);
+
+  useEffect(() => {
+    const update = () => setJapanTime(formatJapanDateTime(new Date()));
+    update();
+    const intervalId = window.setInterval(update, 60_000);
+    return () => window.clearInterval(intervalId);
   }, []);
 
   function getSelectedUploadedData(): {
@@ -324,7 +289,7 @@ export default function Home() {
     setIsRendering(true);
     setRenderError(null);
     setGuaranteePreviewError(null);
-    setRenderMessage('Canvasプレビューを作成しています...');
+    setRenderMessage('プレビューを作成しています...');
     setGuaranteePreviewMessage('身元保証書の正式様式を読み込んでいます...');
 
     const selected = getSelectedUploadedData();
@@ -366,7 +331,7 @@ export default function Home() {
       setGuaranteePreviewMessage(
         selected
           ? `選択中の申請人「${selected.applicant.passportName}」の身元保証書を表示しています。`
-          : '正式様式上に固定サンプルを表示しています。Excel取込前でも背景を確認できます。',
+          : '正式様式上に固定サンプルを表示しています。',
       );
     } catch (caughtError) {
       console.error(caughtError);
@@ -377,7 +342,7 @@ export default function Home() {
     if (invitationSucceeded && guaranteeSucceeded) {
       setRenderMessage(
         selected
-          ? `選択中の申請人「${selected.applicant.passportName}」の2種類のプレビューを作成しました。`
+          ? `「${selected.applicant.passportName}」の2種類のプレビューを更新しました。`
           : '2種類の固定サンプルプレビューを作成しました。',
       );
     } else if (invitationSucceeded) {
@@ -385,7 +350,7 @@ export default function Home() {
     } else if (guaranteeSucceeded) {
       setRenderMessage('身元保証書は作成できましたが、招へい理由書の作成に失敗しました。');
     } else {
-      setRenderMessage('2種類のCanvasプレビュー作成に失敗しました。');
+      setRenderMessage('2種類のプレビュー作成に失敗しました。');
     }
 
     setIsRendering(false);
@@ -406,7 +371,7 @@ export default function Home() {
         : await renderInvitationCanvas(fixedInvitationReasonSample, { debug: false });
       const blob = await canvasToPngBlob(canvas);
       downloadBlob(blob, `${invitationReasonDownloadBaseName}.png`);
-      setRenderMessage('完成PNGを作成しました。');
+      setRenderMessage('確認用PNGを作成しました。');
     } catch (caughtError) {
       console.error(caughtError);
       setRenderError(toJapaneseRenderError(caughtError));
@@ -419,7 +384,7 @@ export default function Home() {
   async function downloadCompletedPdf() {
     setIsRendering(true);
     setRenderError(null);
-    setRenderMessage('PDFを作成しています...');
+    setRenderMessage('固定サンプルPDFを作成しています...');
     try {
       const canvas = await renderInvitationCanvas(fixedInvitationReasonSample, { debug: false });
       const blob = await exportInvitationPdf(canvas);
@@ -439,7 +404,7 @@ export default function Home() {
     if (!selected) return;
     setIsRendering(true);
     setRenderError(null);
-    setRenderMessage('選択中の申請人PDFを作成しています...');
+    setRenderMessage('招へい理由書PDFを作成しています...');
     try {
       const canvas = await renderApplicantCanvas(
         selected.data,
@@ -447,11 +412,11 @@ export default function Home() {
       );
       const blob = await exportInvitationPdf(canvas);
       downloadBlob(blob, createInvitationReasonPdfFilename(selected.applicant));
-      setRenderMessage('選択中の申請人PDFを作成しました。');
+      setRenderMessage('選択中の申請人の招へい理由書PDFを作成しました。');
     } catch (caughtError) {
       console.error(caughtError);
       setRenderError(toJapaneseRenderError(caughtError));
-      setRenderMessage('選択中の申請人PDF作成に失敗しました。');
+      setRenderMessage('招へい理由書PDF作成に失敗しました。');
     } finally {
       setIsRendering(false);
     }
@@ -522,7 +487,7 @@ export default function Home() {
       const entries: { filename: string; blob: Blob }[] = [];
       for (const [index, applicant] of excelResult.applicants.entries()) {
         setRenderMessage(
-          `全員分PDFを作成しています... ${index + 1}/${excelResult.applicants.length} ${applicant.passportName}`,
+          `全員分の招へい理由書を作成しています... ${index + 1}/${excelResult.applicants.length} ${applicant.passportName}`,
         );
         const canvas = await renderApplicantCanvas(
           toInvitationReasonData(common, applicant),
@@ -535,11 +500,11 @@ export default function Home() {
       }
       setRenderMessage('ZIPファイルを作成しています...');
       downloadBlob(await createZipBlob(entries), 'InvitationReason_AllApplicants.zip');
-      setRenderMessage(`${entries.length}名分のPDFをZIPで作成しました。`);
+      setRenderMessage(`${entries.length}名分の招へい理由書をZIPで作成しました。`);
     } catch (caughtError) {
       console.error(caughtError);
       setRenderError(toJapaneseRenderError(caughtError));
-      setRenderMessage('全員分PDFの一括作成に失敗しました。');
+      setRenderMessage('全員分の招へい理由書作成に失敗しました。');
     } finally {
       setIsRendering(false);
     }
@@ -554,7 +519,7 @@ export default function Home() {
       const entries: { filename: string; blob: Blob }[] = [];
       for (const [index, applicant] of excelResult.applicants.entries()) {
         setRenderMessage(
-          `身元保証書を作成しています... ${index + 1}/${excelResult.applicants.length} ${applicant.passportName}`,
+          `全員分の身元保証書を作成しています... ${index + 1}/${excelResult.applicants.length} ${applicant.passportName}`,
         );
         const canvas = await renderGuaranteeCanvas(
           toGuaranteeLetterData(common, applicant, guaranteeSettings),
@@ -569,7 +534,7 @@ export default function Home() {
     } catch (caughtError) {
       console.error(caughtError);
       setRenderError(toJapaneseRenderError(caughtError));
-      setRenderMessage('身元保証書の一括作成に失敗しました。');
+      setRenderMessage('全員分の身元保証書作成に失敗しました。');
     } finally {
       setIsRendering(false);
     }
@@ -589,6 +554,8 @@ export default function Home() {
       const result = parseBatchWorkbook(XLSX, workbook, file.name);
       setExcelResult(result);
       setSelectedSequence(result.applicants[0]?.sequence ?? null);
+      setUploadedAt(formatJapanDateTime(new Date()));
+      setSidebarTab('applicant');
     } catch (caughtError) {
       setExcelResult({
         fileName: file.name,
@@ -608,160 +575,385 @@ export default function Home() {
         }],
       });
       setSelectedSequence(null);
+      setUploadedAt(formatJapanDateTime(new Date()));
     }
     event.target.value = '';
   }
 
-  const selectedReady = getSelectedUploadedData() !== null;
+  const selected = getSelectedUploadedData();
+  const selectedApplicant = selected?.applicant ?? null;
+  const selectedReady = selected !== null;
   const batchReady = Boolean(excelResult?.canGenerateBatch && excelResult.applicants.length);
+  const currentDocumentDate = selected?.common.documentDate ?? fixedGuaranteeLetterSample.documentDate;
+  const currentMission = selected?.common.diplomaticMission ?? fixedGuaranteeLetterSample.diplomaticMission;
+  const applicantLabel = selectedApplicant
+    ? `${String(selectedApplicant.sequence).padStart(2, '0')} ${selectedApplicant.passportName}`
+    : 'サンプルデータ';
+
+  function confirmBatch(kind: 'invitation' | 'guarantee') {
+    if (!excelResult) return false;
+    const documentLabel = kind === 'invitation' ? '招へい理由書' : '身元保証書';
+    return window.confirm(
+      `${excelResult.applicants.length}名分の${documentLabel}を作成します。\n\n`
+      + `作成日：${currentDocumentDate}\n`
+      + `提出先公館：${currentMission}\n`
+      + `エラー：${excelResult.issues.filter((issue) => issue.level === 'error').length}件\n\n`
+      + '内容を確認して「OK」を押してください。',
+    );
+  }
 
   return (
-    <main>
-      <section className="hero">
-        <p className="eyebrow">ビザ申請書類 作成ツール</p>
-        <h1>招へい理由書と身元保証書</h1>
-        <p>同じ申請人データから、1名につき1通の招へい理由書と身元保証書を作成できます。</p>
-      </section>
+    <>
+      <header className="appHeader">
+        <div className="brandBlock">
+          <span className="brandEyebrow">留学サポートデスク</span>
+          <h1>短期滞在ビザ書類作成</h1>
+        </div>
+        <div className="headerMeta">
+          <time dateTime={new Date().toISOString()}>{japanTime}</time>
+          <div className="headerBadges">
+            <span>学内業務用</span>
+            <span className="privacyBadge">個人情報取扱注意</span>
+          </div>
+        </div>
+      </header>
 
-      <section className="excelSection">
-        <p className="eyebrow">身元保証書設定</p>
-        <h2>保証人情報</h2>
-        <p>公館種別と職業は任意です。大使館・総領事館を未選択のまま出力し、提出時に手書きでチェックすることもできます。</p>
-        <div className="previewGroup">
-          <label>
-            所属・肩書・氏名
-            <input
-              value={guaranteeSettings.guarantorName}
-              onChange={(event) => setGuaranteeSettings((current) => ({
-                ...current,
-                guarantorName: event.target.value,
-              }))}
-            />
-          </label>
-          <label>
-            職業（任意）
-            <input
-              value={guaranteeSettings.guarantorOccupation}
-              onChange={(event) => setGuaranteeSettings((current) => ({
-                ...current,
-                guarantorOccupation: event.target.value,
-              }))}
-            />
-          </label>
-          <label>
-            生年月日
-            <input
-              type="date"
-              value={guaranteeSettings.guarantorDateOfBirth}
-              onChange={(event) => setGuaranteeSettings((current) => ({
-                ...current,
-                guarantorDateOfBirth: event.target.value,
-              }))}
-            />
-          </label>
-          <label>
-            公館種別
-            <select
-              value={guaranteeSettings.missionType}
-              onChange={(event) => setGuaranteeSettings((current) => ({
-                ...current,
-                missionType: event.target.value as MissionType,
-              }))}
+      <main className="appShell">
+        <nav className="stepBar" aria-label="作業手順">
+          <div className={`stepItem ${excelResult ? 'complete' : 'active'}`}>
+            <span>1</span><strong>Excel取込</strong>
+          </div>
+          <div className={`stepConnector ${excelResult ? 'complete' : ''}`} />
+          <div className={`stepItem ${!excelResult ? 'pending' : selectedReady ? 'complete' : 'active'}`}>
+            <span>2</span><strong>内容確認</strong>
+          </div>
+          <div className={`stepConnector ${selectedReady ? 'complete' : ''}`} />
+          <div className={`stepItem ${selectedReady ? 'active' : 'pending'}`}>
+            <span>3</span><strong>書類作成</strong>
+          </div>
+        </nav>
+
+        <details className="aboutPanel">
+          <summary>このツールについて</summary>
+          <div>
+            <p>
+              短期滞在ビザが必要な留学生に対して、ビザ申請関連書類を作成する学内業務用ツールです。
+              指定のExcelテンプレートから申請人情報を読み込み、内容を確認して申請人ごとのPDFを作成します。
+            </p>
+            <p><strong>現在対応している書類：</strong>招へい理由書・身元保証書</p>
+            <p>作成した書類は、提出前に必ず担当職員が内容を確認してください。</p>
+          </div>
+        </details>
+
+        <div className="workspaceGrid">
+          <aside className="sidebar" aria-label="入力・申請人情報">
+            <section className="panel uploadPanel">
+              <div className="panelHeading">
+                <span className="panelStep">STEP 1</span>
+                <h2>Excelを読み込む</h2>
+              </div>
+              <p className="panelHelp">入力済みExcelをアップロードしてください。初回はテンプレートをダウンロードします。</p>
+              <div className="uploadActions">
+                <label className="uploadButton">
+                  {excelResult ? '別のExcelを読み込む' : 'Excelをアップロード'}
+                  <input type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} />
+                </label>
+                <button type="button" className="secondaryButton" onClick={downloadExcelTemplate}>
+                  テンプレート
+                </button>
+              </div>
+              {excelResult ? (
+                <div className="fileMeta">
+                  <strong>{excelResult.fileName}</strong>
+                  <span>読込日時：{uploadedAt ?? '取得中'}</span>
+                </div>
+              ) : null}
+            </section>
+
+            {excelResult ? (
+              <section className="panel applicantPanel">
+                <div className="panelHeading">
+                  <span className="panelStep">STEP 2</span>
+                  <h2>申請人を確認</h2>
+                </div>
+                <ApplicantList
+                  result={excelResult}
+                  selectedSequence={selectedSequence}
+                  onSelectApplicant={(applicant) => setSelectedSequence(applicant.sequence)}
+                />
+              </section>
+            ) : (
+              <section className="panel emptyGuide">
+                <strong>最初にExcelを読み込んでください</strong>
+                <p>読込前は右側に確認用のサンプル書類を表示しています。</p>
+              </section>
+            )}
+
+            <section className="panel detailPanel">
+              <div className="sidebarTabs" role="tablist" aria-label="詳細情報">
+                <button
+                  type="button"
+                  className={sidebarTab === 'applicant' ? 'active' : ''}
+                  onClick={() => setSidebarTab('applicant')}
+                >
+                  申請人情報
+                </button>
+                <button
+                  type="button"
+                  className={sidebarTab === 'document' ? 'active' : ''}
+                  onClick={() => setSidebarTab('document')}
+                >
+                  書類設定
+                </button>
+                <button
+                  type="button"
+                  className={sidebarTab === 'guarantor' ? 'active' : ''}
+                  onClick={() => setSidebarTab('guarantor')}
+                >
+                  保証人情報
+                </button>
+              </div>
+
+              {sidebarTab === 'applicant' ? (
+                <dl className="readOnlyList">
+                  <ReadOnlyField label="氏名" value={selectedApplicant?.passportName ?? fixedGuaranteeLetterSample.applicantPassportName} />
+                  <ReadOnlyField label="国籍" value={selectedApplicant?.nationality ?? fixedGuaranteeLetterSample.applicantNationality} />
+                  <ReadOnlyField label="職業" value={selectedApplicant?.occupation ?? fixedGuaranteeLetterSample.applicantOccupation} />
+                  <ReadOnlyField label="性別" value={selectedApplicant?.gender ?? fixedGuaranteeLetterSample.applicantGender} />
+                  <ReadOnlyField label="生年月日" value={selectedApplicant?.dateOfBirth ?? fixedGuaranteeLetterSample.applicantDateOfBirth} />
+                  <ReadOnlyField label="年齢" value={selectedApplicant?.calculatedAge ?? fixedGuaranteeLetterSample.applicantAge} />
+                </dl>
+              ) : null}
+
+              {sidebarTab === 'document' ? (
+                <dl className="readOnlyList">
+                  <ReadOnlyField label="書類作成日" value={currentDocumentDate} />
+                  <ReadOnlyField label="提出先公館" value={currentMission} />
+                  <ReadOnlyField label="招へい理由書番号" value={selectedApplicant?.documentNumber ?? 'サンプル'} />
+                  <ReadOnlyField label="身元保証書番号" value={selectedApplicant?.guaranteeDocumentNumber ?? 'サンプル'} />
+                  <ReadOnlyField label="プログラム名" value={selected?.common.programName ?? 'サンプルプログラム'} />
+                </dl>
+              ) : null}
+
+              {sidebarTab === 'guarantor' ? (
+                <div className="formStack">
+                  <label>
+                    所属・肩書・氏名
+                    <input
+                      value={guaranteeSettings.guarantorName}
+                      onChange={(event) => setGuaranteeSettings((current) => ({
+                        ...current,
+                        guarantorName: event.target.value,
+                      }))}
+                    />
+                  </label>
+                  <label>
+                    職業（任意）
+                    <input
+                      value={guaranteeSettings.guarantorOccupation}
+                      onChange={(event) => setGuaranteeSettings((current) => ({
+                        ...current,
+                        guarantorOccupation: event.target.value,
+                      }))}
+                    />
+                  </label>
+                  <label>
+                    生年月日
+                    <input
+                      type="date"
+                      value={guaranteeSettings.guarantorDateOfBirth}
+                      onChange={(event) => setGuaranteeSettings((current) => ({
+                        ...current,
+                        guarantorDateOfBirth: event.target.value,
+                      }))}
+                    />
+                  </label>
+                  <label>
+                    公館種別
+                    <select
+                      value={guaranteeSettings.missionType}
+                      onChange={(event) => setGuaranteeSettings((current) => ({
+                        ...current,
+                        missionType: event.target.value as MissionType,
+                      }))}
+                    >
+                      <option value="none">未選択</option>
+                      <option value="embassy">大使館</option>
+                      <option value="consulate">総領事館</option>
+                    </select>
+                  </label>
+                  <label>
+                    保証人FAX（任意）
+                    <input
+                      value={guaranteeSettings.guarantorFax}
+                      onChange={(event) => setGuaranteeSettings((current) => ({
+                        ...current,
+                        guarantorFax: event.target.value,
+                      }))}
+                    />
+                  </label>
+                  <label>
+                    担当者FAX（任意）
+                    <input
+                      value={guaranteeSettings.contactFax}
+                      onChange={(event) => setGuaranteeSettings((current) => ({
+                        ...current,
+                        contactFax: event.target.value,
+                      }))}
+                    />
+                  </label>
+                </div>
+              ) : null}
+            </section>
+          </aside>
+
+          <section className="previewWorkspace" aria-label="書類プレビュー">
+            <div className={`dataBanner ${selectedReady ? 'uploaded' : 'sample'}`}>
+              <div>
+                <strong>{selectedReady ? 'Excelデータ表示中' : 'サンプルデータ表示中'}</strong>
+                <span>
+                  {selectedReady
+                    ? `選択中：${applicantLabel}`
+                    : '確認用データです。実際の書類として使用しないでください。'}
+                </span>
+              </div>
+              <small>{excelResult ? `データ元：${excelResult.fileName}` : 'Excel未読込'}</small>
+            </div>
+
+            <div className="previewHeader">
+              <div>
+                <span className="panelStep">STEP 3</span>
+                <h2>書類を確認する</h2>
+              </div>
+              <div className="previewTabs" role="tablist" aria-label="プレビュー書類切替">
+                <button
+                  type="button"
+                  className={previewMode === 'invitation' ? 'active' : ''}
+                  onClick={() => setPreviewMode('invitation')}
+                >
+                  招へい理由書
+                </button>
+                <button
+                  type="button"
+                  className={previewMode === 'guarantee' ? 'active' : ''}
+                  onClick={() => setPreviewMode('guarantee')}
+                >
+                  身元保証書
+                </button>
+                <button
+                  type="button"
+                  className={previewMode === 'both' ? 'active' : ''}
+                  onClick={() => setPreviewMode('both')}
+                >
+                  2書類確認
+                </button>
+              </div>
+            </div>
+
+            <div className={`previewStage ${previewMode === 'both' ? 'bothMode' : ''}`}>
+              <article className={`previewDocument ${previewMode === 'guarantee' ? 'hiddenDocument' : ''}`}>
+                <div className="documentTitleRow">
+                  <h3>招へい理由書</h3>
+                  <span>{applicantLabel}</span>
+                </div>
+                <div className="canvasFrame">
+                  <canvas
+                    ref={previewCanvasRef}
+                    width={2481}
+                    height={3508}
+                    aria-label="招へい理由書Canvasプレビュー"
+                  />
+                </div>
+              </article>
+
+              <article className={`previewDocument ${previewMode === 'invitation' ? 'hiddenDocument' : ''}`}>
+                <div className="documentTitleRow">
+                  <h3>身元保証書</h3>
+                  <span>{applicantLabel}</span>
+                </div>
+                <div className="canvasFrame">
+                  <canvas
+                    ref={guaranteeCanvasRef}
+                    width={GUARANTEE_CANVAS_WIDTH}
+                    height={GUARANTEE_CANVAS_HEIGHT}
+                    aria-label="身元保証書Canvasプレビュー"
+                  />
+                </div>
+              </article>
+            </div>
+
+            <div className="statusPanel" aria-live="polite">
+              <div>
+                <strong>処理状況</strong>
+                <span>{renderMessage}</span>
+              </div>
+              {renderError ? <p className="errorMessage">{renderError}</p> : null}
+              {(previewMode === 'guarantee' || previewMode === 'both') ? (
+                <div className="guaranteeStatus">
+                  <strong>身元保証書</strong>
+                  <span>{guaranteePreviewMessage}</span>
+                  {guaranteePreviewError ? <p className="errorMessage">{guaranteePreviewError}</p> : null}
+                </div>
+              ) : null}
+            </div>
+
+            <details className="advancedPanel">
+              <summary>詳細機能・確認用出力</summary>
+              <div className="advancedActions">
+                <button type="button" className="secondaryButton" onClick={() => regeneratePreview(isDebug)} disabled={isRendering}>
+                  プレビューを再生成
+                </button>
+                <button type="button" className="secondaryButton" onClick={downloadCompletedPng} disabled={isRendering}>
+                  確認用PNG
+                </button>
+                <button type="button" className="secondaryButton" onClick={downloadCompletedPdf} disabled={isRendering}>
+                  固定サンプルPDF
+                </button>
+              </div>
+            </details>
+          </section>
+        </div>
+      </main>
+
+      <footer className="actionBar" aria-label="書類出力">
+        <div className="actionBarInner">
+          <div className="actionContext">
+            <strong>{selectedReady ? `選択中：${applicantLabel}` : 'Excelを読み込んで申請人を選択してください'}</strong>
+            <span>{isRendering ? '処理中です。完了まで画面を閉じないでください。' : renderMessage}</span>
+          </div>
+          <div className="actionButtons">
+            <button type="button" className="secondaryButton" onClick={downloadSelectedApplicantPdf} disabled={isRendering || !selectedReady}>
+              招へい理由書PDF
+            </button>
+            <button type="button" className="secondaryButton" onClick={downloadSelectedGuaranteePdf} disabled={isRendering || !selectedReady}>
+              身元保証書PDF
+            </button>
+            <button type="button" className="primaryButton" onClick={downloadSelectedDocumentSet} disabled={isRendering || !selectedReady}>
+              2書類をZIP
+            </button>
+            <button
+              type="button"
+              className="batchButton"
+              disabled={isRendering || !batchReady}
+              onClick={() => {
+                if (confirmBatch('invitation')) void downloadAllApplicantsZip();
+              }}
             >
-              <option value="none">未選択</option>
-              <option value="embassy">大使館</option>
-              <option value="consulate">総領事館</option>
-            </select>
-          </label>
-          <label>
-            保証人FAX（任意）
-            <input
-              value={guaranteeSettings.guarantorFax}
-              onChange={(event) => setGuaranteeSettings((current) => ({
-                ...current,
-                guarantorFax: event.target.value,
-              }))}
-            />
-          </label>
-          <label>
-            担当者FAX（任意）
-            <input
-              value={guaranteeSettings.contactFax}
-              onChange={(event) => setGuaranteeSettings((current) => ({
-                ...current,
-                contactFax: event.target.value,
-              }))}
-            />
-          </label>
+              全員の招へい理由書ZIP
+            </button>
+            <button
+              type="button"
+              className="batchButton"
+              disabled={isRendering || !batchReady}
+              onClick={() => {
+                if (confirmBatch('guarantee')) void downloadAllGuaranteeLettersZip();
+              }}
+            >
+              全員の身元保証書ZIP
+            </button>
+          </div>
         </div>
-      </section>
-
-      <section className="rendererSection">
-        <p className="eyebrow">Canvas PDF Renderer</p>
-        <h2>選択申請人プレビュー</h2>
-        <div className="buttonRow">
-          <button type="button" onClick={() => regeneratePreview(isDebug)} disabled={isRendering}>
-            {isRendering ? '処理中...' : 'プレビューを再生成'}
-          </button>
-          <button type="button" onClick={downloadCompletedPng} disabled={isRendering}>招へい理由書PNG</button>
-          <button type="button" onClick={downloadCompletedPdf} disabled={isRendering}>固定サンプルPDF</button>
-          <button type="button" onClick={downloadSelectedApplicantPdf} disabled={isRendering || !selectedReady}>招へい理由書PDF</button>
-          <button type="button" onClick={downloadSelectedGuaranteePdf} disabled={isRendering || !selectedReady}>身元保証書PDF</button>
-          <button type="button" onClick={downloadSelectedDocumentSet} disabled={isRendering || !selectedReady}>2書類をZIP</button>
-          <button type="button" onClick={downloadAllApplicantsZip} disabled={isRendering || !batchReady}>全員の招へい理由書ZIP</button>
-          <button type="button" onClick={downloadAllGuaranteeLettersZip} disabled={isRendering || !batchReady}>全員の身元保証書ZIP</button>
-        </div>
-
-        <h3>招へい理由書</h3>
-        <div className="canvasFrame">
-          <canvas
-            ref={previewCanvasRef}
-            width={2481}
-            height={3508}
-            aria-label="招へい理由書Canvasプレビュー"
-          />
-        </div>
-
-        <h3>身元保証書</h3>
-        <div className="canvasFrame">
-          <canvas
-            ref={guaranteeCanvasRef}
-            width={GUARANTEE_CANVAS_WIDTH}
-            height={GUARANTEE_CANVAS_HEIGHT}
-            aria-label="身元保証書Canvasプレビュー"
-          />
-        </div>
-        <div className="previewStatus" aria-live="polite">
-          <strong>身元保証書プレビュー:</strong> {guaranteePreviewMessage}
-          {guaranteePreviewError ? <p className="error">{guaranteePreviewError}</p> : null}
-        </div>
-
-        <div className="result" aria-live="polite">
-          <h3>レンダリング状況</h3>
-          <p>{renderMessage}</p>
-          {renderError ? <p className="error">{renderError}</p> : null}
-        </div>
-      </section>
-
-      <section className="excelSection">
-        <p className="eyebrow">Excel入力</p>
-        <h2>複数人用Excelテンプレートのダウンロード・アップロード</h2>
-        <p>身元保証書自体は1名につき1通作成します。Excelに複数人がある場合も、申請人ごとに別々のPDFを出力します。</p>
-        <div className="buttonRow">
-          <button type="button" onClick={downloadExcelTemplate}>複数人用Excelテンプレートをダウンロード</button>
-          <label className="uploadButton">
-            Excelファイルをアップロード
-            <input type="file" accept=".xlsx,.xls" onChange={handleExcelUpload} />
-          </label>
-        </div>
-        {excelResult ? (
-          <ExcelPreview
-            result={excelResult}
-            selectedSequence={selectedSequence}
-            onSelectApplicant={(applicant) => setSelectedSequence(applicant.sequence)}
-          />
-        ) : null}
-      </section>
-    </main>
+      </footer>
+    </>
   );
 }
