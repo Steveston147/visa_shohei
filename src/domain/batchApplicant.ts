@@ -34,6 +34,7 @@ export type BatchApplicant = {
   sequence: number;
   sourceRow: number;
   documentNumber: string;
+  guaranteeDocumentNumber: string;
   nationality: string;
   occupation: string;
   passportName: string;
@@ -46,6 +47,7 @@ export type ReviewApplicant = {
   sequence: number;
   sourceRow: number;
   documentNumber: string;
+  guaranteeDocumentNumber: string;
   nationality: string;
   occupation: string;
   passportName: string;
@@ -59,6 +61,7 @@ export type ReviewApplicant = {
 export type ApplicantDraft = {
   sourceRow: number;
   documentNumber?: string;
+  guaranteeDocumentNumber?: string;
   nationality: string;
   occupation: string;
   passportName: string;
@@ -147,6 +150,7 @@ export function validateBatch(common: Partial<CommonInfo>, drafts: ApplicantDraf
   for (const draft of drafts) {
     const sequence = reviewApplicants.length + 1;
     const documentNumber = String(draft.documentNumber ?? '').trim();
+    const guaranteeDocumentNumber = String(draft.guaranteeDocumentNumber ?? '').trim();
     const nationality = draft.nationality.trim();
     const occupation = draft.occupation.trim();
     const passportName = draft.passportName.trim();
@@ -186,6 +190,7 @@ export function validateBatch(common: Partial<CommonInfo>, drafts: ApplicantDraf
       sequence,
       sourceRow: draft.sourceRow,
       documentNumber,
+      guaranteeDocumentNumber,
       nationality,
       occupation,
       passportName,
@@ -197,7 +202,7 @@ export function validateBatch(common: Partial<CommonInfo>, drafts: ApplicantDraf
     });
 
     if (status === 'valid' && gender && dateOfBirth && calculatedAge !== null) {
-      applicants.push({ sequence, sourceRow: draft.sourceRow, documentNumber, nationality, occupation, passportName, gender, dateOfBirth, calculatedAge });
+      applicants.push({ sequence, sourceRow: draft.sourceRow, documentNumber, guaranteeDocumentNumber, nationality, occupation, passportName, gender, dateOfBirth, calculatedAge });
     }
   }
 
