@@ -1,11 +1,11 @@
 import type { GuaranteeLetterData } from '../domain/guaranteeLetterData';
 import { CANVAS_FONT_FAMILY, FONT_PATH } from './constants';
 import { InvitationRenderError } from './canvasText';
+import { GUARANTEE_TEMPLATE_DATA_URL } from './guaranteeTemplateData';
 
 export const GUARANTEE_CANVAS_WIDTH = 1241;
 export const GUARANTEE_CANVAS_HEIGHT = 1754;
 
-const TEMPLATE_PATH = '/templates/guarantee-letter-template.png';
 const DATE_RIGHT = 1182;
 
 let fontPromise: Promise<void> | null = null;
@@ -34,7 +34,7 @@ function loadTemplate() {
       templatePromise = null;
       reject(new InvitationRenderError('BACKGROUND_LOAD', '身元保証書の正式テンプレートを読み込めませんでした。', error));
     };
-    image.src = TEMPLATE_PATH;
+    image.src = GUARANTEE_TEMPLATE_DATA_URL;
   });
   return templatePromise;
 }
