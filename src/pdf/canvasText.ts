@@ -6,6 +6,7 @@ export type RenderErrorCode =
   | 'CANVAS_CONTEXT'
   | 'IMAGE_LOAD'
   | 'IMAGE_DIMENSION'
+  | 'BACKGROUND_LOAD'
   | 'FONT_LOAD'
   | 'CANVAS_TO_PNG'
   | 'PDF_CREATION';

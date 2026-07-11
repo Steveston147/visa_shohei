@@ -1,32 +1,30 @@
-# 招へい理由書PDF作成
+# 招へい理由書・身元保証書PDF作成
 
-Next.js + TypeScript app that fills one Japanese visa invitation reason PDF (`招へい理由書`) with fixed sample data and downloads a flattened PDF.
+Next.js + TypeScript app that creates Japanese visa invitation documents from Excel applicant data.
 
-## Template and field names
+## Supported documents
 
-Place the fillable PDF template at:
+- 招へい理由書
+- 身元保証書（申請人1名につき1通）
 
-```text
-public/templates/shouhei-riyusho.pdf
-```
+The same applicant data can be used to download each PDF separately or both documents in one ZIP file.
 
-PDF field names must be maintained in:
+## 身元保証書の運用
 
-```text
-src/lib/pdfFieldNames.ts
-```
-
-This file is the single source of truth for PDF field names. Do not hard-code guessed field names in other files. If a required field name is blank or does not exist in the template, the app shows a clear error message.
+- 身元保証人氏名欄には、所属・肩書・氏名をまとめて入力できます。
+- 身元保証人の職業は任意です。
+- 身元保証人の生年月日を入力すると、書類作成日現在の年齢を自動計算します。
+- 公館種別は「未選択」「大使館」「総領事館」から選択できます。
+- 未選択のまま出力し、提出時に手書きでチェックする運用にも対応します。
+- 複数申請人を1枚にまとめず、常に1名につき1通を発行します。
 
 ## Japanese font
 
-The sample data contains Japanese text. To render Japanese text correctly with `pdf-lib`, place a Japanese-capable TrueType font at:
+Place a Japanese-capable TrueType font at:
 
 ```text
 public/fonts/NotoSansJP-Regular.ttf
 ```
-
-The app uses the pdf-lib recommended `@pdf-lib/fontkit` package. It does not include or download font files automatically. If this file is missing, PDF generation stops with an instruction to add it.
 
 ## Run the app
 
@@ -35,28 +33,27 @@ npm install
 npm run dev
 ```
 
-Open the URL printed by Next.js and click `完成PDFをダウンロード`.
-
-The downloaded file name is:
-
-```text
-InvitationReason_{programName}_{passportName}.pdf
-```
-
-## Excel input support
-
-The Step 3A UI can download `shouhei_riyusho_template.xlsx`, upload an edited Excel file, parse the `Input` sheet, preview the data, and show validation errors and warnings. Uploaded Excel data is intentionally not connected to PDF generation yet.
-
-Excel support uses SheetJS via the real runtime dependency `xlsx` declared in `package.json`. `npm install` must successfully install `xlsx` for `npm run build` and browser runtime behavior to work. The local `src/types/xlsx.d.ts` file is only a small fallback declaration for typechecking in restricted environments where package types are unavailable; it does not replace the actual `xlsx` package.
-
-## Inspect PDF field names
+## Validation
 
 ```bash
-npm run inspect:pdf
+npm run typecheck
+npm run validate:batch
+npm run validate:guarantee
+npm run build
 ```
 
-The script reads `public/templates/shouhei-riyusho.pdf`, prints every AcroForm widget with page index and rectangle coordinates, sorts widgets top-to-bottom and left-to-right, and writes `docs/pdf-field-inspection.md`. Use the coordinate report plus the visible PDF layout to update `src/lib/pdfFieldNames.ts`; do not rely on field order alone.
+## Excel input
 
-## Scope
+The app can download an Excel template, upload an edited workbook, validate applicant rows, preview a selected applicant, and create individual PDFs or ZIP archives.
 
-This app intentionally supports exactly one visa applicant. It does not implement multiple applicants, representative applicant mode, applicant lists, ZIP export, Excel-to-PDF generation, login, database, or cloud storage.
+## Output
+
+- Selected applicant invitation reason PDF
+- Selected applicant guarantee letter PDF
+- Both documents for the selected applicant in one ZIP
+- Invitation reason PDFs for all valid applicants in one ZIP
+- One guarantee letter per applicant for all valid applicants in one ZIP
+
+## Notes
+
+The guarantee letter is rendered on Canvas and converted to A4 PDF with the existing `pdf-lib` export pipeline. Its coordinates should be visually checked against an actual submitted sample before production use.

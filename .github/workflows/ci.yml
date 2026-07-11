@@ -23,13 +23,48 @@ jobs:
           node-version: 24
 
       - name: Install dependencies including dev dependencies
-        run: npm install --include=dev
+        run: npm install --include=dev --silent
+
+      - name: Verify exact official guarantee background
+        run: npm run validate:guarantee-background
+
+      - name: Validate batch mapping logic
+        run: npm run validate:batch
+
+      - name: Validate guarantee mapping logic
+        run: npm run validate:guarantee
 
       - name: Verify TypeScript package is available
         run: node -e "console.log(require.resolve('typescript/lib/typescript.js'))"
 
       - name: Run typecheck
-        run: npm run typecheck
+        id: typecheck
+        continue-on-error: true
+        run: npm run typecheck -- --pretty false 2>&1 | tee typecheck.log
+
+      - name: Upload typecheck log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-log
+          path: typecheck.log
+
+      - name: Fail when typecheck failed
+        if: steps.typecheck.outcome == 'failure'
+        run: exit 1
 
       - name: Build application
-        run: npm run build
+        id: build
+        continue-on-error: true
+        run: npm run build 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+
+      - name: Fail when build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
