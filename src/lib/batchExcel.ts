@@ -1,5 +1,6 @@
 import type { ApplicantDraft, CommonInfo, ValidationIssue } from '../domain/batchApplicant';
 import { commonInfoFields, getCommonFieldLabel, normalizeDateInput, optionalCommonKeys, validateBatch, type BatchParseResult } from '../domain/batchApplicant';
+import { setRuntimeBatchResult } from './runtimeVisaStore';
 
 type XlsxModule = typeof import('xlsx/xlsx.mjs');
 
@@ -85,5 +86,8 @@ export function parseBatchWorkbook(XLSX: XlsxModule, workbook: import('xlsx').Wo
       drafts.push({ sourceRow, documentNumber, guaranteeDocumentNumber, nationality: values[0], occupation: values[1], passportName: values[2], gender: values[3], dateOfBirth });
     });
   }
-  return { fileName, ...validateBatch(common, drafts, issues) };
+
+  const result = { fileName, ...validateBatch(common, drafts, issues) };
+  setRuntimeBatchResult(result);
+  return result;
 }
