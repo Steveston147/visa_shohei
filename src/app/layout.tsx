@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import AllDocumentsBatchButton from './AllDocumentsBatchButton';
 import './globals.css';
+import './ritsumeikan-theme.css';
 
 export const metadata: Metadata = {
   title: '留学サポートデスク｜短期滞在ビザ書類作成',
