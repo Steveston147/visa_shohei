@@ -22,6 +22,12 @@ import {
 export const GUARANTEE_CANVAS_WIDTH = GUARANTEE_TEMPLATE_WIDTH;
 export const GUARANTEE_CANVAS_HEIGHT = GUARANTEE_TEMPLATE_HEIGHT;
 
+// On the official guarantee form, the final printed 「日」 in the date row ends
+// farther right than on the invitation-reason form. This anchor aligns the last
+// character of the document number with that final 「日」 while preserving the
+// shared drawDocumentNumber() sizing and baseline behaviour.
+const GUARANTEE_DOCUMENT_NUMBER_RIGHT_EDGE_PT = 555;
+
 export type RenderGuaranteeCanvasOptions = {
   canvas?: HTMLCanvasElement;
   debug?: boolean;
@@ -177,10 +183,9 @@ export async function renderGuaranteeCanvas(
     if (options.debug) drawDebug(ctx, target, key, placement);
   }
 
-  // The invitation reason and guarantee letter deliberately share this exact
-  // helper. The document number is therefore right-aligned at the same point,
-  // on the same baseline immediately above the date, with identical shrinking.
-  drawDocumentNumber(target, data.documentNumber);
+  drawDocumentNumber(target, data.documentNumber, {
+    rightEdgePt: GUARANTEE_DOCUMENT_NUMBER_RIGHT_EDGE_PT,
+  });
 
   if (data.missionType === 'embassy') {
     drawCheckbox(ctx, target, guaranteeCheckboxPlacements.missionEmbassy);
