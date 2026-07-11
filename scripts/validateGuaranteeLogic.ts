@@ -23,7 +23,8 @@ const common: CommonInfo = {
 const applicant: BatchApplicant = {
   sequence: 1,
   sourceRow: 2,
-  documentNumber: '',
+  documentNumber: 'Invitation-001',
+  guaranteeDocumentNumber: 'Guarantee-901',
   nationality: 'Canada',
   occupation: 'Student',
   passportName: 'TEST STUDENT',
@@ -46,5 +47,7 @@ assert.equal(result.applicantPassportName, 'TEST STUDENT');
 assert.equal(result.guarantorName, settings.guarantorName);
 assert.equal(result.guarantorAge, 58);
 assert.equal(result.missionType, 'none');
+assert.equal(result.documentNumber, 'Guarantee-901');
+assert.notEqual(result.documentNumber, applicant.documentNumber);
 assert.equal('additionalApplicantsCount' in result, false);
 console.log('Guarantee letter mapping validation passed.');
