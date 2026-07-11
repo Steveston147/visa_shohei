@@ -25,6 +25,15 @@ jobs:
       - name: Install dependencies including dev dependencies
         run: npm install --include=dev --silent
 
+      - name: Verify exact official guarantee background
+        run: npm run validate:guarantee-background
+
+      - name: Validate batch mapping logic
+        run: npm run validate:batch
+
+      - name: Validate guarantee mapping logic
+        run: npm run validate:guarantee
+
       - name: Verify TypeScript package is available
         run: node -e "console.log(require.resolve('typescript/lib/typescript.js'))"
 
