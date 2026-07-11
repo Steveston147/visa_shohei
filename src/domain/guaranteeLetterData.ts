@@ -52,6 +52,38 @@ export const defaultGuaranteeLetterSettings: GuaranteeLetterSettings = {
   contactFax: '',
 };
 
+/**
+ * A deterministic preview record. It makes the official guarantee form visible
+ * immediately, before an Excel file is uploaded or an applicant is selected.
+ */
+export const fixedGuaranteeLetterSample: GuaranteeLetterData = {
+  documentNumber: '',
+  documentDate: '2026-07-08',
+  diplomaticMission: '上海',
+  missionType: 'none',
+  applicantNationality: 'China',
+  applicantOccupation: 'Student',
+  applicantPassportName: 'ZHANG WEI',
+  applicantGender: 'male',
+  applicantDateOfBirth: '2004-05-12',
+  applicantAge: 22,
+  guarantorPostalCode: '603-8577',
+  guarantorAddress: '京都市北区等持院北町56-1',
+  guarantorOccupation: '',
+  guarantorName: defaultGuaranteeLetterSettings.guarantorName,
+  guarantorDateOfBirth: '',
+  guarantorAge: null,
+  guarantorPhone: '075-466-3009',
+  guarantorExtension: '511-4794',
+  guarantorFax: '',
+  relationshipToApplicant: '受入機関',
+  organisationName: 'Ritsumeikan Study Abroad Center',
+  contactPersonName: 'Takeshi Tanaka',
+  contactPhone: '075-466-3009',
+  contactExtension: '511-4794',
+  contactFax: '',
+};
+
 export function toGuaranteeLetterData(
   common: CommonInfo,
   applicant: BatchApplicant,
