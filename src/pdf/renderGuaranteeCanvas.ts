@@ -1,3 +1,4 @@
+import guaranteeLetterBackground from '../../public/templates/guarantee-letter-template.png';
 import type { GuaranteeLetterData } from '../domain/guaranteeLetterData';
 import {
   BACKGROUND_HEIGHT_PX,
@@ -19,7 +20,11 @@ import {
 
 export const GUARANTEE_CANVAS_WIDTH = BACKGROUND_WIDTH_PX;
 export const GUARANTEE_CANVAS_HEIGHT = BACKGROUND_HEIGHT_PX;
-export const GUARANTEE_BACKGROUND_PATH = '/templates/guarantee-letter-template.png';
+
+// Import the official form as a Next.js static asset instead of relying on a
+// root-relative public URL. This makes the image part of the deployment output
+// and gives it a hashed URL on Vercel.
+export const GUARANTEE_BACKGROUND_PATH = guaranteeLetterBackground.src;
 
 let backgroundLoadPromise: Promise<HTMLImageElement> | null = null;
 let fontLoadPromise: Promise<void> | null = null;
@@ -30,18 +35,30 @@ function loadBackgroundImage() {
   backgroundLoadPromise = new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
     image.decoding = 'async';
-    image.onload = async () => {
-      try {
-        await image.decode?.();
-        resolve(image);
-      } catch (error) {
-        reject(error);
-      }
-    };
-    image.onerror = () => reject(new Error(GUARANTEE_BACKGROUND_PATH));
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`Failed to load ${GUARANTEE_BACKGROUND_PATH}`));
     image.src = GUARANTEE_BACKGROUND_PATH;
+  }).then((image) => {
+    if (!image.naturalWidth || !image.naturalHeight) {
+      throw new InvitationRenderError(
+        'IMAGE_DIMENSION',
+        '身元保証書の正式様式の画像サイズを確認できませんでした。',
+      );
+    }
+
+    const sourceAspectRatio = image.naturalWidth / image.naturalHeight;
+    const a4AspectRatio = GUARANTEE_CANVAS_WIDTH / GUARANTEE_CANVAS_HEIGHT;
+    if (Math.abs(sourceAspectRatio - a4AspectRatio) > 0.02) {
+      throw new InvitationRenderError(
+        'IMAGE_DIMENSION',
+        `身元保証書の正式様式がA4比率ではありません（${image.naturalWidth} x ${image.naturalHeight}）。`,
+      );
+    }
+
+    return image;
   }).catch((error) => {
     backgroundLoadPromise = null;
+    if (error instanceof InvitationRenderError) throw error;
     throw new InvitationRenderError(
       'IMAGE_LOAD',
       '身元保証書の正式様式を読み込めませんでした。白紙では出力しません。',
@@ -100,9 +117,6 @@ export async function renderGuaranteeCanvas(
   }
 
   ctx.clearRect(0, 0, target.width, target.height);
-  // The official form image is the complete page. Fixed labels, borders and rules
-  // are never redrawn by this renderer. The current source image is scaled to the
-  // required 300 dpi A4 Canvas so Canvas preview and PDF share the same pixels.
   ctx.drawImage(image, 0, 0, target.width, target.height);
 
   const documentDate = dateParts(data.documentDate);
