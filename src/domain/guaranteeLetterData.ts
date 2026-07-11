@@ -1,5 +1,6 @@
 import type { BatchApplicant, CommonInfo } from './batchApplicant';
 import { calculateAgeFromDates } from './invitationReasonData';
+import { setRuntimeGuaranteeSettings } from '../lib/runtimeVisaStore';
 
 export type MissionType = 'embassy' | 'consulate' | 'none';
 
@@ -89,6 +90,8 @@ export function toGuaranteeLetterData(
   applicant: BatchApplicant,
   settings: GuaranteeLetterSettings = defaultGuaranteeLetterSettings,
 ): GuaranteeLetterData {
+  setRuntimeGuaranteeSettings(settings);
+
   const guarantorDateOfBirth = settings.guarantorDateOfBirth.trim();
   const guarantorAge = guarantorDateOfBirth
     ? calculateAgeFromDates(common.documentDate, guarantorDateOfBirth)
