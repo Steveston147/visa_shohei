@@ -63,7 +63,7 @@ export function toGuaranteeLetterData(
     : null;
 
   return {
-    documentNumber: applicant.documentNumber.trim(),
+    documentNumber: applicant.guaranteeDocumentNumber.trim(),
     documentDate: common.documentDate,
     diplomaticMission: common.diplomaticMission,
     missionType: settings.missionType,
