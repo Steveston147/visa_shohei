@@ -31,7 +31,15 @@ function reiwaYear(year: string) {
   return numeric >= 2019 ? String(numeric - 2018) : '';
 }
 
-function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size = 15, weight: 400, align: CanvasTextAlign = 'left') {
+function drawText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  size: number = 15,
+  weight: number = 400,
+  align: CanvasTextAlign = 'left',
+) {
   ctx.save();
   ctx.font = `${weight} ${size}px "${CANVAS_FONT_FAMILY}", sans-serif`;
   ctx.textAlign = align;
