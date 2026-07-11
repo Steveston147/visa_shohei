@@ -1,4 +1,3 @@
-import guaranteeLetterBackground from '../../public/templates/guarantee-letter-template.png';
 import type { GuaranteeLetterData } from '../domain/guaranteeLetterData';
 import {
   BACKGROUND_HEIGHT_PX,
@@ -17,14 +16,15 @@ import {
   guaranteeTextPlacements,
   type GuaranteeTextPlacementKey,
 } from './guaranteePlacements';
+import { GUARANTEE_TEMPLATE_DATA_URL } from './guaranteeTemplateData';
 
 export const GUARANTEE_CANVAS_WIDTH = BACKGROUND_WIDTH_PX;
 export const GUARANTEE_CANVAS_HEIGHT = BACKGROUND_HEIGHT_PX;
 
-// Import the official form as a Next.js static asset instead of relying on a
-// root-relative public URL. This makes the image part of the deployment output
-// and gives it a hashed URL on Vercel.
-export const GUARANTEE_BACKGROUND_PATH = guaranteeLetterBackground.src;
+// The official form is bundled as PNG data so rendering does not depend on a
+// Vercel public-file URL. It is still loaded as an image and drawn as the full
+// page background before any variable values are added.
+export const GUARANTEE_BACKGROUND_PATH = GUARANTEE_TEMPLATE_DATA_URL;
 
 let backgroundLoadPromise: Promise<HTMLImageElement> | null = null;
 let fontLoadPromise: Promise<void> | null = null;
@@ -36,7 +36,7 @@ function loadBackgroundImage() {
     const image = new Image();
     image.decoding = 'async';
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error(`Failed to load ${GUARANTEE_BACKGROUND_PATH}`));
+    image.onerror = () => reject(new Error('The bundled guarantee form PNG could not be decoded.'));
     image.src = GUARANTEE_BACKGROUND_PATH;
   }).then((image) => {
     if (!image.naturalWidth || !image.naturalHeight) {
