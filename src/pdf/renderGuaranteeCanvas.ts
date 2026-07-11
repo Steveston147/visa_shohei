@@ -7,6 +7,7 @@ import {
   drawSingleLine,
   InvitationRenderError,
 } from './canvasText';
+import { drawDocumentNumber } from './drawDocumentNumber';
 import {
   guaranteeCheckboxPlacements,
   guaranteeTextPlacements,
@@ -137,7 +138,6 @@ export async function renderGuaranteeCanvas(
   const [guarantorPostalCodeFirst3 = '', guarantorPostalCodeLast4 = ''] = data.guarantorPostalCode.split('-');
 
   const values: Record<GuaranteeTextPlacementKey, string> = {
-    documentNumber: data.documentNumber,
     documentDateYear: reiwaYear(documentDate.year),
     documentDateMonth: documentDate.month ? String(documentDate.month) : '',
     documentDateDay: documentDate.day ? String(documentDate.day) : '',
@@ -176,6 +176,11 @@ export async function renderGuaranteeCanvas(
     drawSingleLine(ctx, target, key, values[key], placement);
     if (options.debug) drawDebug(ctx, target, key, placement);
   }
+
+  // The invitation reason and guarantee letter deliberately share this exact
+  // helper. The document number is therefore right-aligned at the same point,
+  // on the same baseline immediately above the date, with identical shrinking.
+  drawDocumentNumber(target, data.documentNumber);
 
   if (data.missionType === 'embassy') {
     drawCheckbox(ctx, target, guaranteeCheckboxPlacements.missionEmbassy);
