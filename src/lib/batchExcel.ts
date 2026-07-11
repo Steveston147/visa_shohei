@@ -3,7 +3,7 @@ import { commonInfoFields, getCommonFieldLabel, normalizeDateInput, optionalComm
 
 type XlsxModule = typeof import('xlsx/xlsx.mjs');
 
-export const batchTemplateFilename = 'shouhei_riyusho_multi_applicant_template.xlsx';
+export const batchTemplateFilename = 'visa_documents_multi_applicant_template.xlsx';
 export const commonSheetName = '共通情報';
 export const applicantsSheetName = '申請人一覧';
 
@@ -20,11 +20,20 @@ export function createBatchWorkbook(XLSX: XlsxModule) {
   commonSheet['!freeze'] = { xSplit: 0, ySplit: 1 };
   commonSheet['!autofilter'] = { ref: `A1:D${commonRows.length}` };
 
-  const applicantRows = [['No.', '公文書番号（任意）', '国籍', '職業', 'パスポート表記氏名', '性別', '生年月日'], ...Array.from({ length: 20 }, (_, index) => [index + 1, '', '', '', '', '', ''])];
+  const applicantRows = [[
+    'No.',
+    '招へい理由書 公文書番号（任意）',
+    '身元保証書 公文書番号（任意）',
+    '国籍',
+    '職業',
+    'パスポート表記氏名',
+    '性別',
+    '生年月日',
+  ], ...Array.from({ length: 20 }, (_, index) => [index + 1, '', '', '', '', '', '', ''])];
   const applicantSheet = XLSX.utils.aoa_to_sheet(applicantRows);
-  applicantSheet['!cols'] = [{ wch: 8 }, { wch: 28 }, { wch: 18 }, { wch: 18 }, { wch: 32 }, { wch: 12 }, { wch: 16 }];
+  applicantSheet['!cols'] = [{ wch: 8 }, { wch: 30 }, { wch: 30 }, { wch: 18 }, { wch: 18 }, { wch: 32 }, { wch: 12 }, { wch: 16 }];
   applicantSheet['!freeze'] = { xSplit: 0, ySplit: 1 };
-  applicantSheet['!autofilter'] = { ref: 'A1:G21' };
+  applicantSheet['!autofilter'] = { ref: 'A1:H21' };
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, commonSheet, commonSheetName);
@@ -63,12 +72,17 @@ export function parseBatchWorkbook(XLSX: XlsxModule, workbook: import('xlsx').Wo
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(applicantSheet, { defval: '', raw: true });
     rows.forEach((row, index) => {
       const sourceRow = index + 2;
-      const documentNumber = stringValue(row['公文書番号（任意）'] ?? row['公文書番号']);
+      const documentNumber = stringValue(
+        row['招へい理由書 公文書番号（任意）'] ?? row['招へい理由書公文書番号'] ?? row['公文書番号（任意）'] ?? row['公文書番号'],
+      );
+      const guaranteeDocumentNumber = stringValue(
+        row['身元保証書 公文書番号（任意）'] ?? row['身元保証書公文書番号'],
+      );
       const values = ['国籍', '職業', 'パスポート表記氏名', '性別'].map((field) => stringValue(row[field]));
       const rawDateOfBirth = row['生年月日'];
       const dateOfBirth = normalizeDateInput(rawDateOfBirth, XLSX.SSF.parse_date_code) ?? stringValue(rawDateOfBirth);
-      if ([documentNumber, ...values, stringValue(rawDateOfBirth)].every((value) => !value)) return;
-      drafts.push({ sourceRow, documentNumber, nationality: values[0], occupation: values[1], passportName: values[2], gender: values[3], dateOfBirth });
+      if ([documentNumber, guaranteeDocumentNumber, ...values, stringValue(rawDateOfBirth)].every((value) => !value)) return;
+      drafts.push({ sourceRow, documentNumber, guaranteeDocumentNumber, nationality: values[0], occupation: values[1], passportName: values[2], gender: values[3], dateOfBirth });
     });
   }
   return { fileName, ...validateBatch(common, drafts, issues) };
