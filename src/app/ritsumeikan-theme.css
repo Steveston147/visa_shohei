@@ -1,0 +1,35 @@
+:root {
+  --ritsumeikan-crimson-950: #570013;
+  --ritsumeikan-crimson-900: #72001a;
+  --ritsumeikan-crimson-800: #92082a;
+}
+
+.appHeader {
+  background: linear-gradient(
+    115deg,
+    var(--ritsumeikan-crimson-950) 0%,
+    var(--ritsumeikan-crimson-900) 52%,
+    var(--ritsumeikan-crimson-800) 100%
+  );
+  border-bottom-color: rgb(255 255 255 / 0.2);
+  box-shadow: 0 4px 16px rgb(87 0 19 / 0.18);
+}
+
+.brandEyebrow {
+  color: #f4c7d2;
+}
+
+.headerMeta time {
+  color: #f8e9ed;
+}
+
+.headerBadges span {
+  background: rgb(255 255 255 / 0.12);
+  border-color: rgb(255 255 255 / 0.24);
+}
+
+.headerBadges .privacyBadge {
+  background: rgb(255 235 239 / 0.12);
+  border-color: rgb(255 211 220 / 0.42);
+  color: #ffe8ed;
+}
