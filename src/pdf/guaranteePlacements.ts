@@ -2,7 +2,6 @@ import { A4_HEIGHT_PT } from './constants';
 import type { FieldPlacement } from './placements';
 
 export type GuaranteeTextPlacementKey =
-  | 'documentNumber'
   | 'documentDateYear'
   | 'documentDateMonth'
   | 'documentDateDay'
@@ -61,19 +60,17 @@ const single = {
   paddingMm: 0.8,
 };
 const centre = { ...single, align: 'center' as const };
-const right = { ...single, align: 'right' as const };
 
 /**
  * Coordinates below come directly from the AcroForm widget rectangles in the
  * official one-page PDF supplied by the user. PDF coordinates use a bottom-left
  * origin; rect() converts them to millimetres from the A4 top-left corner.
+ *
+ * The document number is intentionally not defined here. Both the invitation
+ * reason and guarantee letter use the same drawDocumentNumber() helper, so its
+ * right edge, baseline, font size and shrink behaviour cannot drift apart.
  */
 export const guaranteeTextPlacements: Record<GuaranteeTextPlacementKey, FieldPlacement> = {
-  // The official form has no AcroForm field for an internal document number.
-  // This is the only application-specific overlay and is deliberately kept in
-  // the otherwise unused top-right margin above the official date fields.
-  documentNumber: { xMm: 157, yMm: 16, widthMm: 43, heightMm: 7, ...right, fontSizePt: 8, minFontSizePt: 6 },
-
   documentDateYear: rect({ xPt: 429.641, yPt: 746.561, widthPt: 31.485, heightPt: 16.68 }, centre),
   documentDateMonth: rect({ xPt: 469.859, yPt: 746.925, widthPt: 32.795, heightPt: 16.68 }, centre),
   documentDateDay: rect({ xPt: 512.696, yPt: 747.289, widthPt: 33.449, heightPt: 16.68 }, centre),
