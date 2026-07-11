@@ -4,6 +4,7 @@ import { calculateAgeFromDates } from './invitationReasonData';
 export type MissionType = 'embassy' | 'consulate' | 'none';
 
 export type GuaranteeLetterData = {
+  documentNumber: string;
   documentDate: string;
   diplomaticMission: string;
   missionType: MissionType;
@@ -62,6 +63,7 @@ export function toGuaranteeLetterData(
     : null;
 
   return {
+    documentNumber: applicant.documentNumber.trim(),
     documentDate: common.documentDate,
     diplomaticMission: common.diplomaticMission,
     missionType: settings.missionType,
