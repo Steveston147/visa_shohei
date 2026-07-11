@@ -186,8 +186,13 @@ export default function AllDocumentsBatchButton() {
       const entries: ZipEntry[] = [];
       for (const [index, applicant] of batchResult.applicants.entries()) {
         setButtonLabel(`作成中 ${index + 1}/${count}`);
-        const applicantEntries = await createApplicantEntries(common, applicant, settings);
-        entries.push(...applicantEntries);
+        try {
+          const applicantEntries = await createApplicantEntries(common, applicant, settings);
+          entries.push(...applicantEntries);
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : '不明なエラー';
+          throw new Error(`${String(applicant.sequence).padStart(2, '0')} ${applicant.passportName} の作成中に失敗しました。${reason}`);
+        }
         await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
       }
 
