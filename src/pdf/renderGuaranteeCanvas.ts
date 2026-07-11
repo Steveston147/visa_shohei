@@ -1,13 +1,9 @@
 import type { GuaranteeLetterData } from '../domain/guaranteeLetterData';
-import {
-  BACKGROUND_HEIGHT_PX,
-  BACKGROUND_WIDTH_PX,
-  CANVAS_FONT_FAMILY,
-  FONT_PATH,
-} from './constants';
+import { CANVAS_FONT_FAMILY, FONT_PATH } from './constants';
 import {
   assertCurrentA4PointConversion,
   drawCheckbox,
+  drawDebug,
   drawSingleLine,
   InvitationRenderError,
 } from './canvasText';
@@ -16,15 +12,19 @@ import {
   guaranteeTextPlacements,
   type GuaranteeTextPlacementKey,
 } from './guaranteePlacements';
-import { GUARANTEE_TEMPLATE_DATA_URL } from './guaranteeTemplateData';
+import {
+  GUARANTEE_TEMPLATE_DATA_URL,
+  GUARANTEE_TEMPLATE_HEIGHT,
+  GUARANTEE_TEMPLATE_WIDTH,
+} from './guaranteeTemplateData';
 
-export const GUARANTEE_CANVAS_WIDTH = BACKGROUND_WIDTH_PX;
-export const GUARANTEE_CANVAS_HEIGHT = BACKGROUND_HEIGHT_PX;
+export const GUARANTEE_CANVAS_WIDTH = GUARANTEE_TEMPLATE_WIDTH;
+export const GUARANTEE_CANVAS_HEIGHT = GUARANTEE_TEMPLATE_HEIGHT;
 
-// The official form is bundled as PNG data so rendering does not depend on a
-// Vercel public-file URL. It is still loaded as an image and drawn as the full
-// page background before any variable values are added.
-export const GUARANTEE_BACKGROUND_PATH = GUARANTEE_TEMPLATE_DATA_URL;
+export type RenderGuaranteeCanvasOptions = {
+  canvas?: HTMLCanvasElement;
+  debug?: boolean;
+};
 
 let backgroundLoadPromise: Promise<HTMLImageElement> | null = null;
 let fontLoadPromise: Promise<void> | null = null;
@@ -35,30 +35,18 @@ function loadBackgroundImage() {
   backgroundLoadPromise = new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
     image.decoding = 'async';
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('The bundled guarantee form PNG could not be decoded.'));
-    image.src = GUARANTEE_BACKGROUND_PATH;
-  }).then((image) => {
-    if (!image.naturalWidth || !image.naturalHeight) {
-      throw new InvitationRenderError(
-        'IMAGE_DIMENSION',
-        '身元保証書の正式様式の画像サイズを確認できませんでした。',
-      );
-    }
-
-    const sourceAspectRatio = image.naturalWidth / image.naturalHeight;
-    const a4AspectRatio = GUARANTEE_CANVAS_WIDTH / GUARANTEE_CANVAS_HEIGHT;
-    if (Math.abs(sourceAspectRatio - a4AspectRatio) > 0.02) {
-      throw new InvitationRenderError(
-        'IMAGE_DIMENSION',
-        `身元保証書の正式様式がA4比率ではありません（${image.naturalWidth} x ${image.naturalHeight}）。`,
-      );
-    }
-
-    return image;
+    image.onload = async () => {
+      try {
+        await image.decode?.();
+        resolve(image);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    image.onerror = () => reject(new Error('The official guarantee-letter background could not be decoded.'));
+    image.src = GUARANTEE_TEMPLATE_DATA_URL;
   }).catch((error) => {
     backgroundLoadPromise = null;
-    if (error instanceof InvitationRenderError) throw error;
     throw new InvitationRenderError(
       'IMAGE_LOAD',
       '身元保証書の正式様式を読み込めませんでした。白紙では出力しません。',
@@ -102,13 +90,35 @@ function reiwaYear(year: number) {
 
 export async function renderGuaranteeCanvas(
   data: GuaranteeLetterData,
-  canvas?: HTMLCanvasElement,
+  options: RenderGuaranteeCanvasOptions = {},
 ) {
-  const [image] = await Promise.all([loadBackgroundImage(), loadCanvasFont()]);
+  let image: HTMLImageElement;
+  try {
+    image = await loadBackgroundImage();
+  } catch (error) {
+    if (error instanceof InvitationRenderError) throw error;
+    throw new InvitationRenderError(
+      'IMAGE_LOAD',
+      '身元保証書の正式様式を読み込めませんでした。白紙では出力しません。',
+      error,
+    );
+  }
 
-  const target = canvas ?? document.createElement('canvas');
-  target.width = GUARANTEE_CANVAS_WIDTH;
-  target.height = GUARANTEE_CANVAS_HEIGHT;
+  if (
+    image.naturalWidth !== GUARANTEE_TEMPLATE_WIDTH
+    || image.naturalHeight !== GUARANTEE_TEMPLATE_HEIGHT
+  ) {
+    throw new InvitationRenderError(
+      'IMAGE_DIMENSION',
+      `身元保証書の背景画像サイズが不正です（${image.naturalWidth} x ${image.naturalHeight}）。`,
+    );
+  }
+
+  await loadCanvasFont();
+
+  const target = options.canvas ?? document.createElement('canvas');
+  target.width = image.naturalWidth;
+  target.height = image.naturalHeight;
   assertCurrentA4PointConversion(target);
 
   const ctx = target.getContext('2d');
@@ -117,11 +127,14 @@ export async function renderGuaranteeCanvas(
   }
 
   ctx.clearRect(0, 0, target.width, target.height);
-  ctx.drawImage(image, 0, 0, target.width, target.height);
+  // Draw the exact 2481 x 3508 official page without scaling. Fixed labels,
+  // borders and rules are already in the background and are never redrawn.
+  ctx.drawImage(image, 0, 0);
 
   const documentDate = dateParts(data.documentDate);
   const applicantBirthDate = dateParts(data.applicantDateOfBirth);
   const guarantorBirthDate = dateParts(data.guarantorDateOfBirth);
+  const [guarantorPostalCodeFirst3 = '', guarantorPostalCodeLast4 = ''] = data.guarantorPostalCode.split('-');
 
   const values: Record<GuaranteeTextPlacementKey, string> = {
     documentNumber: data.documentNumber,
@@ -135,8 +148,9 @@ export async function renderGuaranteeCanvas(
     applicantBirthYear: applicantBirthDate.year ? String(applicantBirthDate.year) : '',
     applicantBirthMonth: applicantBirthDate.month ? String(applicantBirthDate.month) : '',
     applicantBirthDay: applicantBirthDate.day ? String(applicantBirthDate.day) : '',
-    applicantAge: data.applicantAge === null ? '' : String(data.applicantAge),
-    guarantorPostalCode: data.guarantorPostalCode,
+    applicantAge: String(data.applicantAge),
+    guarantorPostalCodeFirst3,
+    guarantorPostalCodeLast4,
     guarantorAddress: data.guarantorAddress,
     guarantorOccupation: data.guarantorOccupation,
     guarantorName: data.guarantorName,
@@ -160,6 +174,7 @@ export async function renderGuaranteeCanvas(
     (typeof guaranteeTextPlacements)[GuaranteeTextPlacementKey],
   ][]) {
     drawSingleLine(ctx, target, key, values[key], placement);
+    if (options.debug) drawDebug(ctx, target, key, placement);
   }
 
   if (data.missionType === 'embassy') {
@@ -173,6 +188,12 @@ export async function renderGuaranteeCanvas(
   }
   if (data.applicantGender === 'female') {
     drawCheckbox(ctx, target, guaranteeCheckboxPlacements.applicantGenderFemale);
+  }
+
+  if (options.debug) {
+    Object.entries(guaranteeCheckboxPlacements).forEach(([key, placement]) => {
+      drawDebug(ctx, target, key, placement);
+    });
   }
 
   return target;
