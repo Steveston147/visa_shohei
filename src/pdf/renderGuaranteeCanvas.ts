@@ -1,18 +1,15 @@
 import type { GuaranteeLetterData } from '../domain/guaranteeLetterData';
 import { CANVAS_FONT_FAMILY, FONT_PATH } from './constants';
 import { InvitationRenderError } from './canvasText';
-import { drawDocumentNumber } from './drawDocumentNumber';
 
-export const GUARANTEE_CANVAS_WIDTH = 993;
-export const GUARANTEE_CANVAS_HEIGHT = 1404;
+export const GUARANTEE_CANVAS_WIDTH = 1241;
+export const GUARANTEE_CANVAS_HEIGHT = 1754;
 
-const FORM_LEFT = 84;
-const FORM_RIGHT = 934;
-const VALUE_LEFT = 294;
-const VALUE_RIGHT = 812;
-const DATE_RIGHT = 892;
+const TEMPLATE_PATH = '/templates/guarantee-letter-template.png';
+const DATE_RIGHT = 1182;
 
 let fontPromise: Promise<void> | null = null;
+let templatePromise: Promise<HTMLImageElement> | null = null;
 
 function loadFont() {
   if (fontPromise) return fontPromise;
@@ -28,237 +25,160 @@ function loadFont() {
   return fontPromise;
 }
 
-function parts(value: string) {
+function loadTemplate() {
+  if (templatePromise) return templatePromise;
+  templatePromise = new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = (error) => {
+      templatePromise = null;
+      reject(new InvitationRenderError('BACKGROUND_LOAD', '身元保証書の正式テンプレートを読み込めませんでした。', error));
+    };
+    image.src = TEMPLATE_PATH;
+  });
+  return templatePromise;
+}
+
+function dateParts(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   return match
-    ? { year: match[1], month: String(Number(match[2])), day: String(Number(match[3])) }
-    : { year: '', month: '', day: '' };
+    ? { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) }
+    : { year: 0, month: 0, day: 0 };
 }
 
-function reiwaYear(year: string) {
-  const numeric = Number(year);
-  return numeric >= 2019 ? String(numeric - 2018) : '';
-}
-
-function setFont(ctx: CanvasRenderingContext2D, size: number, weight: number) {
+function setFont(ctx: CanvasRenderingContext2D, size: number, weight = 400) {
   ctx.font = `${weight} ${size}px "${CANVAS_FONT_FAMILY}", sans-serif`;
 }
 
 function drawText(
   ctx: CanvasRenderingContext2D,
-  text: string,
+  value: string,
   x: number,
   y: number,
-  size = 15,
-  weight = 400,
-  align: CanvasTextAlign = 'left',
+  options: { size?: number; weight?: number; align?: CanvasTextAlign; maxWidth?: number; minSize?: number } = {},
 ) {
-  ctx.save();
-  setFont(ctx, size, weight);
-  ctx.textAlign = align;
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#111';
-  ctx.fillText(text || '', x, y);
-  ctx.restore();
-}
+  const text = value.trim();
+  if (!text) return;
+  const { size = 18, weight = 400, align = 'left', maxWidth, minSize = 11 } = options;
+  let actualSize = size;
 
-function drawFittedText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  maxWidth: number,
-  size = 15,
-  minSize = 11,
-  weight = 400,
-  align: CanvasTextAlign = 'left',
-) {
-  let current = size;
   ctx.save();
-  ctx.textAlign = align;
-  ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#111';
-  while (current > minSize) {
-    setFont(ctx, current, weight);
-    if (ctx.measureText(text || '').width <= maxWidth) break;
-    current -= 0.5;
+  ctx.textAlign = align;
+  ctx.textBaseline = 'middle';
+  setFont(ctx, actualSize, weight);
+
+  if (maxWidth) {
+    while (actualSize > minSize && ctx.measureText(text).width > maxWidth) {
+      actualSize -= 0.5;
+      setFont(ctx, actualSize, weight);
+    }
+    ctx.fillText(text, x, y, maxWidth);
+  } else {
+    ctx.fillText(text, x, y);
   }
-  setFont(ctx, current, weight);
-  ctx.fillText(text || '', x, y, maxWidth);
   ctx.restore();
 }
 
-function line(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, width = 1) {
-  ctx.save();
-  ctx.lineWidth = width;
-  ctx.strokeStyle = '#222';
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function box(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, width = 1) {
-  ctx.save();
-  ctx.lineWidth = width;
-  ctx.strokeStyle = '#222';
-  ctx.strokeRect(x, y, w, h);
-  ctx.restore();
-}
-
-function check(ctx: CanvasRenderingContext2D, x: number, y: number) {
+function drawCheck(ctx: CanvasRenderingContext2D, x: number, y: number, scale = 1) {
   ctx.save();
   ctx.strokeStyle = '#111';
-  ctx.lineWidth = 2.3;
+  ctx.lineWidth = 3 * scale;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.beginPath();
-  ctx.moveTo(x + 1, y + 7);
-  ctx.lineTo(x + 5, y + 11);
-  ctx.lineTo(x + 14, y + 1);
+  ctx.moveTo(x, y + 7 * scale);
+  ctx.lineTo(x + 6 * scale, y + 13 * scale);
+  ctx.lineTo(x + 18 * scale, y - 2 * scale);
   ctx.stroke();
   ctx.restore();
 }
 
-function labelLine(ctx: CanvasRenderingContext2D, label: string, y: number, x1 = VALUE_LEFT, x2 = VALUE_RIGHT) {
-  drawText(ctx, label, 135, y, 15, 500);
-  line(ctx, x1, y + 5, x2, y + 5);
+function drawDocumentNumber(ctx: CanvasRenderingContext2D, value: string) {
+  drawText(ctx, value, DATE_RIGHT, 128, {
+    size: 16,
+    minSize: 11,
+    align: 'right',
+    maxWidth: 250,
+  });
 }
 
-function drawDateRow(
-  ctx: CanvasRenderingContext2D,
-  date: { year: string; month: string; day: string },
-  y: number,
-  includeEra: boolean,
-) {
-  const year = includeEra ? reiwaYear(date.year) : date.year;
-  if (includeEra) drawText(ctx, '令和', DATE_RIGHT - 194, y, 15, 400);
-  else drawText(ctx, '西暦', DATE_RIGHT - 194, y, 15, 400);
-  drawText(ctx, year, DATE_RIGHT - 119, y, 15, 400, 'center');
-  drawText(ctx, '年', DATE_RIGHT - 82, y, 15, 400);
-  drawText(ctx, date.month, DATE_RIGHT - 43, y, 15, 400, 'center');
-  drawText(ctx, '月', DATE_RIGHT - 20, y, 15, 400);
-  drawText(ctx, date.day, DATE_RIGHT + 19, y, 15, 400, 'center');
-  drawText(ctx, '日', DATE_RIGHT + 40, y, 15, 400);
+function drawDocumentDate(ctx: CanvasRenderingContext2D, value: string) {
+  const date = dateParts(value);
+  if (!date.year) return;
+  drawText(ctx, String(date.year - 2018), 998, 184, { size: 18, align: 'center' });
+  drawText(ctx, String(date.month), 1090, 184, { size: 18, align: 'center' });
+  drawText(ctx, String(date.day), 1174, 184, { size: 18, align: 'center' });
 }
 
-function drawBirthRow(
+function drawBirthDate(
   ctx: CanvasRenderingContext2D,
-  label: string,
-  date: { year: string; month: string; day: string },
+  value: string,
   age: number | null,
-  y: number,
+  positions: { year: number; month: number; day: number; age: number; y: number },
 ) {
-  drawText(ctx, label, 135, y, 15, 500);
-  drawText(ctx, '西暦', 303, y, 14, 400);
-  drawText(ctx, date.year, 404, y, 14, 400, 'center');
-  drawText(ctx, '年', 451, y, 14, 400);
-  drawText(ctx, date.month, 518, y, 14, 400, 'center');
-  drawText(ctx, '月', 545, y, 14, 400);
-  drawText(ctx, date.day, 610, y, 14, 400, 'center');
-  drawText(ctx, '日生', 638, y, 14, 400);
-  drawText(ctx, age === null ? '' : String(age), 724, y, 14, 400, 'center');
-  drawText(ctx, '歳', 751, y, 14, 400);
+  const date = dateParts(value);
+  if (date.year) {
+    drawText(ctx, String(date.year), positions.year, positions.y, { size: 17, align: 'center' });
+    drawText(ctx, String(date.month), positions.month, positions.y, { size: 17, align: 'center' });
+    drawText(ctx, String(date.day), positions.day, positions.y, { size: 17, align: 'center' });
+  }
+  if (age !== null) drawText(ctx, String(age), positions.age, positions.y, { size: 17, align: 'center' });
 }
 
 export async function renderGuaranteeCanvas(data: GuaranteeLetterData, canvas?: HTMLCanvasElement) {
-  await loadFont();
+  await Promise.all([loadFont(), loadTemplate()]);
+  const template = await loadTemplate();
   const target = canvas ?? document.createElement('canvas');
   target.width = GUARANTEE_CANVAS_WIDTH;
   target.height = GUARANTEE_CANVAS_HEIGHT;
   const ctx = target.getContext('2d');
   if (!ctx) throw new InvitationRenderError('CANVAS_CONTEXT', '身元保証書Canvasを作成できませんでした。');
 
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, target.width, target.height);
-  box(ctx, FORM_LEFT, 74, FORM_RIGHT - FORM_LEFT, 1089, 1.15);
+  ctx.clearRect(0, 0, target.width, target.height);
+  ctx.drawImage(template, 0, 0, target.width, target.height);
 
-  drawText(ctx, '身元保証書', 496, 114, 28, 700, 'center');
+  drawDocumentNumber(ctx, data.documentNumber);
+  drawDocumentDate(ctx, data.documentDate);
 
-  const documentDate = parts(data.documentDate);
-  drawDateRow(ctx, documentDate, 151, true);
+  drawText(ctx, data.diplomaticMission, 264, 253, { size: 18, align: 'center', maxWidth: 180, minSize: 12 });
+  if (data.missionType === 'embassy') drawCheck(ctx, 554, 210, 0.9);
+  if (data.missionType === 'consulate') drawCheck(ctx, 554, 281, 0.9);
 
-  drawText(ctx, '在', 114, 205, 16, 400);
-  line(ctx, 138, 213, 280, 213);
-  drawFittedText(ctx, data.diplomaticMission, 209, 207, 132, 15, 11, 400, 'center');
-  drawText(ctx, '日本国', 296, 205, 16, 400);
-  drawText(ctx, '大使', 366, 178, 16, 400);
-  box(ctx, 425, 164, 14, 14);
-  drawText(ctx, '総領事', 365, 231, 16, 400);
-  box(ctx, 425, 217, 14, 14);
-  drawText(ctx, '殿', 469, 205, 16, 400);
-  if (data.missionType === 'embassy') check(ctx, 425, 164);
-  if (data.missionType === 'consulate') check(ctx, 425, 217);
+  drawText(ctx, data.applicantNationality, 390, 470, { size: 18, maxWidth: 500 });
+  drawText(ctx, data.applicantOccupation, 390, 507, { size: 18, maxWidth: 500 });
+  drawText(ctx, data.applicantPassportName, 390, 545, { size: 18, maxWidth: 425, minSize: 12 });
+  if (data.applicantGender === 'male') drawCheck(ctx, 914, 531, 0.9);
+  if (data.applicantGender === 'female') drawCheck(ctx, 992, 531, 0.9);
+  drawBirthDate(ctx, data.applicantDateOfBirth, data.applicantAge, {
+    year: 510,
+    month: 645,
+    day: 748,
+    age: 920,
+    y: 584,
+  });
 
-  box(ctx, 114, 279, 141, 29, 1.1);
-  drawText(ctx, 'ビ ザ 申 請 人', 184, 301, 18, 700, 'center');
-  drawText(ctx, '※氏名は必ず旅券上のアルファベット表記で記載してください。', 114, 325, 12, 400);
-  drawText(ctx, '申請人が2名以上の場合は、代表者の氏名を記入し、申請人名簿を添付してください。', 114, 344, 11, 400);
+  drawText(ctx, data.guarantorPostalCode, 430, 959, { size: 17, maxWidth: 170 });
+  drawText(ctx, data.guarantorAddress, 390, 1002, { size: 17, maxWidth: 705, minSize: 11 });
+  drawText(ctx, data.guarantorOccupation, 390, 1041, { size: 17, maxWidth: 660, minSize: 11 });
+  drawText(ctx, data.guarantorName, 390, 1080, { size: 17, maxWidth: 660, minSize: 11 });
+  drawBirthDate(ctx, data.guarantorDateOfBirth, data.guarantorAge, {
+    year: 604,
+    month: 714,
+    day: 817,
+    age: 959,
+    y: 1120,
+  });
+  drawText(ctx, data.guarantorPhone, 390, 1160, { size: 17, maxWidth: 400 });
+  drawText(ctx, data.guarantorExtension, 886, 1160, { size: 16, align: 'center', maxWidth: 170 });
+  drawText(ctx, data.guarantorFax, 390, 1200, { size: 17, maxWidth: 650 });
+  drawText(ctx, data.relationshipToApplicant, 390, 1240, { size: 17, maxWidth: 650 });
 
-  labelLine(ctx, '国　　　籍', 376);
-  labelLine(ctx, '職　　　業', 406);
-  labelLine(ctx, '氏　　　名', 436);
-  drawFittedText(ctx, data.applicantNationality, 304, 372, 500, 15, 11);
-  drawFittedText(ctx, data.applicantOccupation, 304, 402, 500, 15, 11);
-  drawFittedText(ctx, data.applicantPassportName, 304, 432, 315, 15, 11);
+  drawText(ctx, data.organisationName, 390, 1320, { size: 17, maxWidth: 650, minSize: 11 });
+  drawText(ctx, data.contactPersonName, 390, 1358, { size: 17, maxWidth: 650, minSize: 11 });
+  drawText(ctx, data.contactPhone, 390, 1397, { size: 17, maxWidth: 400 });
+  drawText(ctx, data.contactExtension, 886, 1397, { size: 16, align: 'center', maxWidth: 170 });
+  drawText(ctx, data.contactFax, 390, 1436, { size: 17, maxWidth: 650 });
 
-  drawText(ctx, '性別', 631, 436, 14, 400);
-  drawText(ctx, '男', 682, 436, 14, 400);
-  box(ctx, 706, 423, 13, 13);
-  drawText(ctx, '・', 727, 436, 14, 400);
-  drawText(ctx, '女', 744, 436, 14, 400);
-  box(ctx, 768, 423, 13, 13);
-  if (data.applicantGender === 'male') check(ctx, 706, 423);
-  if (data.applicantGender === 'female') check(ctx, 768, 423);
-
-  drawBirthRow(ctx, '生 年 月 日', parts(data.applicantDateOfBirth), data.applicantAge, 466);
-
-  drawText(ctx, '上記の者の本邦入国に関し、以下の事項について保証します。', 131, 514, 16, 600);
-  drawText(ctx, '1　滞在費', 151, 556, 16, 600);
-  drawText(ctx, '2　帰国旅費', 151, 581, 16, 600);
-  drawText(ctx, '3　法令の遵守', 151, 606, 16, 600);
-  drawText(ctx, '上記のとおり相違ありません。', 131, 650, 16, 600);
-
-  box(ctx, 114, 687, 151, 29, 1.1);
-  drawText(ctx, '身 元 保 証 人', 189, 709, 18, 700, 'center');
-  drawText(ctx, '（注）', 276, 709, 12, 400);
-
-  drawText(ctx, '住　　　所', 135, 752, 15, 500);
-  drawText(ctx, '〒', 293, 752, 14, 400);
-  drawFittedText(ctx, data.guarantorPostalCode, 325, 752, 165, 14, 11);
-  line(ctx, 294, 760, 490, 760);
-  line(ctx, 294, 790, 861, 790);
-  drawFittedText(ctx, data.guarantorAddress, 304, 786, 548, 14, 10.5);
-
-  labelLine(ctx, '職　　　業', 820, 294, 812);
-  labelLine(ctx, '氏　　　名', 850, 294, 812);
-  drawFittedText(ctx, data.guarantorOccupation, 304, 816, 500, 14, 10.5);
-  drawFittedText(ctx, data.guarantorName, 304, 846, 500, 14, 10.5);
-
-  drawBirthRow(ctx, '生 年 月 日', parts(data.guarantorDateOfBirth), data.guarantorAge, 880);
-
-  labelLine(ctx, '電 話 番 号', 910, 294, 812);
-  drawFittedText(ctx, data.guarantorPhone, 304, 906, 285, 14, 11);
-  drawFittedText(ctx, data.guarantorExtension ? `（内線 ${data.guarantorExtension}）` : '', 640, 906, 170, 13, 10);
-  labelLine(ctx, 'ＦＡＸ番号', 940, 294, 812);
-  drawFittedText(ctx, data.guarantorFax, 304, 936, 500, 14, 11);
-  labelLine(ctx, '申請人との関係', 970, 294, 812);
-  drawFittedText(ctx, data.relationshipToApplicant, 304, 966, 500, 14, 10.5);
-
-  drawText(ctx, '【以下は、会社・団体が招へいする場合に記入してください】', 122, 1012, 15, 600);
-  labelLine(ctx, '担当者所属先名', 1044, 294, 812);
-  drawFittedText(ctx, data.organisationName, 304, 1040, 500, 14, 10.5);
-  labelLine(ctx, '担 当 者 氏 名', 1074, 294, 812);
-  drawFittedText(ctx, data.contactPersonName, 304, 1070, 500, 14, 10.5);
-  labelLine(ctx, '担当者電話番号', 1104, 294, 812);
-  drawFittedText(ctx, data.contactPhone, 304, 1100, 285, 14, 11);
-  drawFittedText(ctx, data.contactExtension ? `（内線 ${data.contactExtension}）` : '', 640, 1100, 170, 13, 10);
-  labelLine(ctx, 'ＦＡＸ番号', 1134, 294, 812);
-  drawFittedText(ctx, data.contactFax, 304, 1130, 500, 14, 11);
-
-  drawText(ctx, '（注）会社・団体等が招へいする場合には会社・団体名及び役職名を記入してください。', 105, 1190, 13, 400);
-
-  drawDocumentNumber(target, data.documentNumber);
   return target;
 }
